@@ -1,0 +1,513 @@
+{
+  "labels_file": "data/labels/gaikwad_century.json",
+  "detections_file": "data/test_detection/gaikwad_century_detections.json",
+  "settings": {
+    "iou_threshold": 0.1,
+    "time_tolerance": 5.0
+  },
+  "metrics": {
+    "true_positives": 34,
+    "false_positives": 24,
+    "false_negatives": 10,
+    "precision": 0.5862068965517241,
+    "recall": 0.7727272727272727,
+    "f1": 0.6666666666666667
+  },
+  "details": {
+    "detection_results": [
+      {
+        "start": 0,
+        "end": 6.2,
+        "confidence": 0.993127703666687,
+        "result": "TP",
+        "matched_gt": 1,
+        "iou": 0.3655913978494625
+      },
+      {
+        "start": 7.0,
+        "end": 15.4,
+        "confidence": 0.9925423860549927,
+        "result": "TP",
+        "matched_gt": 2,
+        "iou": 0.2023809523809523
+      },
+      {
+        "start": 17.8,
+        "end": 25.8,
+        "confidence": 0.9926031231880188,
+        "result": "TP",
+        "matched_gt": 3,
+        "iou": 0.24583333333333357
+      },
+      {
+        "start": 26.6,
+        "end": 36.2,
+        "confidence": 0.9930041432380676,
+        "result": "TP",
+        "matched_gt": 4,
+        "iou": 0.2777777777777775
+      },
+      {
+        "start": 39.8,
+        "end": 53.4,
+        "confidence": 0.9929279685020447,
+        "result": "TP",
+        "matched_gt": 5,
+        "iou": 0.17156862745098056
+      },
+      {
+        "start": 54.2,
+        "end": 64.2,
+        "confidence": 0.9927384257316589,
+        "result": "TP",
+        "matched_gt": 7,
+        "iou": 0.23333333333333356
+      },
+      {
+        "start": 61.8,
+        "end": 69.4,
+        "confidence": 0.9924954175949097,
+        "result": "TP",
+        "matched_gt": 8,
+        "iou": 0.2631578947368418
+      },
+      {
+        "start": 70.2,
+        "end": 82.2,
+        "confidence": 0.9927001595497131,
+        "result": "TP",
+        "matched_gt": 9,
+        "iou": 0.16666666666666666
+      },
+      {
+        "start": 80.2,
+        "end": 89.0,
+        "confidence": 0.9925215840339661,
+        "result": "TP",
+        "matched_gt": 11,
+        "iou": 0.18939393939394
+      },
+      {
+        "start": 92.6,
+        "end": 102.2,
+        "confidence": 0.9924210906028748,
+        "result": "TP",
+        "matched_gt": 12,
+        "iou": 0.3819444444444446
+      },
+      {
+        "start": 99.0,
+        "end": 107.4,
+        "confidence": 0.9924047589302063,
+        "result": "TP",
+        "matched_gt": 13,
+        "iou": 0.23809523809523794
+      },
+      {
+        "start": 103.8,
+        "end": 110.6,
+        "confidence": 0.9914727210998535,
+        "result": "TP",
+        "matched_gt": 14,
+        "iou": 0.34313725490196023
+      },
+      {
+        "start": 112.2,
+        "end": 121.0,
+        "confidence": 0.9922747015953064,
+        "result": "TP",
+        "matched_gt": 15,
+        "iou": 0.2651515151515163
+      },
+      {
+        "start": 125.80000000000001,
+        "end": 134.2,
+        "confidence": 0.9908856749534607,
+        "result": "TP",
+        "matched_gt": 16,
+        "iou": 0.2777777777777797
+      },
+      {
+        "start": 133.8,
+        "end": 143.4,
+        "confidence": 0.9913267493247986,
+        "result": "TP",
+        "matched_gt": 17,
+        "iou": 0.2430555555555567
+      },
+      {
+        "start": 195.4,
+        "end": 203.0,
+        "confidence": 0.9921725988388062,
+        "result": "TP",
+        "matched_gt": 21,
+        "iou": 0.2631578947368423
+      },
+      {
+        "start": 207.8,
+        "end": 215.4,
+        "confidence": 0.9924967288970947,
+        "result": "TP",
+        "matched_gt": 22,
+        "iou": 0.30701754385964686
+      },
+      {
+        "start": 225.0,
+        "end": 232.6,
+        "confidence": 0.9925643801689148,
+        "result": "FP",
+        "matched_gt": null
+      },
+      {
+        "start": 232.6,
+        "end": 241.0,
+        "confidence": 0.9927156567573547,
+        "result": "FP",
+        "matched_gt": null
+      },
+      {
+        "start": 247.8,
+        "end": 255.4,
+        "confidence": 0.9921811819076538,
+        "result": "TP",
+        "matched_gt": 23,
+        "iou": 0.9499999999999993
+      },
+      {
+        "start": 262.2,
+        "end": 270.6,
+        "confidence": 0.992296040058136,
+        "result": "TP",
+        "matched_gt": 24,
+        "iou": 0.731800766283522
+      },
+      {
+        "start": 272.2,
+        "end": 279.8,
+        "confidence": 0.9916937947273254,
+        "result": "TP",
+        "matched_gt": 25,
+        "iou": 0.3070175438596532
+      },
+      {
+        "start": 283.4,
+        "end": 289.4,
+        "confidence": 0.6060779690742493,
+        "result": "TP",
+        "matched_gt": 26,
+        "iou": 0.4444444444444476
+      },
+      {
+        "start": 349.8,
+        "end": 357.8,
+        "confidence": 0.9924098253250122,
+        "result": "TP",
+        "matched_gt": 29,
+        "iou": 0.5833333333333357
+      },
+      {
+        "start": 391.4,
+        "end": 401.0,
+        "confidence": 0.992085874080658,
+        "result": "TP",
+        "matched_gt": 30,
+        "iou": 0.4166666666666657
+      },
+      {
+        "start": 420.2,
+        "end": 428.2,
+        "confidence": 0.992027223110199,
+        "result": "FP",
+        "matched_gt": null
+      },
+      {
+        "start": 433.8,
+        "end": 441.0,
+        "confidence": 0.9921370148658752,
+        "result": "FP",
+        "matched_gt": null
+      },
+      {
+        "start": 443.4,
+        "end": 451.0,
+        "confidence": 0.9922178983688354,
+        "result": "FP",
+        "matched_gt": null
+      },
+      {
+        "start": 485.4,
+        "end": 493.8,
+        "confidence": 0.9919702410697937,
+        "result": "FP",
+        "matched_gt": null
+      },
+      {
+        "start": 612.6,
+        "end": 618.6,
+        "confidence": 0.5312393307685852,
+        "result": "FP",
+        "matched_gt": null
+      },
+      {
+        "start": 625.0,
+        "end": 633.0,
+        "confidence": 0.9922720193862915,
+        "result": "FP",
+        "matched_gt": null
+      },
+      {
+        "start": 657.4,
+        "end": 665.4,
+        "confidence": 0.9916685819625854,
+        "result": "FP",
+        "matched_gt": null
+      },
+      {
+        "start": 669.4,
+        "end": 677.4,
+        "confidence": 0.991746187210083,
+        "result": "FP",
+        "matched_gt": null
+      },
+      {
+        "start": 683.8,
+        "end": 691.4,
+        "confidence": 0.9923215508460999,
+        "result": "FP",
+        "matched_gt": null
+      },
+      {
+        "start": 697.8,
+        "end": 705.0,
+        "confidence": 0.9921686053276062,
+        "result": "FP",
+        "matched_gt": null
+      },
+      {
+        "start": 706.6,
+        "end": 713.8,
+        "confidence": 0.991211473941803,
+        "result": "FP",
+        "matched_gt": null
+      },
+      {
+        "start": 718.6,
+        "end": 727.8,
+        "confidence": 0.9923204779624939,
+        "result": "FP",
+        "matched_gt": null
+      },
+      {
+        "start": 753.4,
+        "end": 760.2,
+        "confidence": 0.9921513795852661,
+        "result": "FP",
+        "matched_gt": null
+      },
+      {
+        "start": 773.4,
+        "end": 780.6,
+        "confidence": 0.9917735457420349,
+        "result": "FP",
+        "matched_gt": null
+      },
+      {
+        "start": 789.8,
+        "end": 797.4,
+        "confidence": 0.9912734627723694,
+        "result": "TP",
+        "matched_gt": 32,
+        "iou": 0.9473684210526347
+      },
+      {
+        "start": 836.2,
+        "end": 843.8,
+        "confidence": 0.990972638130188,
+        "result": "FP",
+        "matched_gt": null
+      },
+      {
+        "start": 885.0,
+        "end": 893.0,
+        "confidence": 0.991431713104248,
+        "result": "TP",
+        "matched_gt": 33,
+        "iou": 0.8999999999999915
+      },
+      {
+        "start": 895.8,
+        "end": 902.2,
+        "confidence": 0.9905080795288086,
+        "result": "FP",
+        "matched_gt": null
+      },
+      {
+        "start": 904.6,
+        "end": 911.0,
+        "confidence": 0.9839868545532227,
+        "result": "FP",
+        "matched_gt": null
+      },
+      {
+        "start": 911.8,
+        "end": 919.4,
+        "confidence": 0.9916634559631348,
+        "result": "TP",
+        "matched_gt": 34,
+        "iou": 0.8947368421052545
+      },
+      {
+        "start": 937.4,
+        "end": 945.8,
+        "confidence": 0.9919872283935547,
+        "result": "TP",
+        "matched_gt": 35,
+        "iou": 0.8571428571428649
+      },
+      {
+        "start": 966.6,
+        "end": 975.0,
+        "confidence": 0.9926155805587769,
+        "result": "TP",
+        "matched_gt": 36,
+        "iou": 0.9047619047619099
+      },
+      {
+        "start": 999.4,
+        "end": 1005.8,
+        "confidence": 0.9903451800346375,
+        "result": "FP",
+        "matched_gt": null
+      },
+      {
+        "start": 1005.4,
+        "end": 1012.2,
+        "confidence": 0.9886787533760071,
+        "result": "FP",
+        "matched_gt": null
+      },
+      {
+        "start": 1035.8,
+        "end": 1042.6,
+        "confidence": 0.9918700456619263,
+        "result": "FP",
+        "matched_gt": null
+      },
+      {
+        "start": 1077.0,
+        "end": 1083.8,
+        "confidence": 0.991442859172821,
+        "result": "TP",
+        "matched_gt": 37,
+        "iou": 0.9362745098039122
+      },
+      {
+        "start": 1136.2,
+        "end": 1143.4,
+        "confidence": 0.9915675520896912,
+        "result": "TP",
+        "matched_gt": 38,
+        "iou": 0.833333333333328
+      },
+      {
+        "start": 1195.0,
+        "end": 1203.8,
+        "confidence": 0.9921082854270935,
+        "result": "TP",
+        "matched_gt": 40,
+        "iou": 0.7272727272727155
+      },
+      {
+        "start": 1247.0,
+        "end": 1253.8,
+        "confidence": 0.9909595251083374,
+        "result": "TP",
+        "matched_gt": 41,
+        "iou": 0.8823529411764764
+      },
+      {
+        "start": 1278.2,
+        "end": 1287.4,
+        "confidence": 0.9918360114097595,
+        "result": "TP",
+        "matched_gt": 42,
+        "iou": 0.8695652173913001
+      },
+      {
+        "start": 1304.6,
+        "end": 1312.2,
+        "confidence": 0.9919499158859253,
+        "result": "TP",
+        "matched_gt": 43,
+        "iou": 0.8947368421052411
+      },
+      {
+        "start": 1333.0,
+        "end": 1339.8,
+        "confidence": 0.9831750988960266,
+        "result": "FP",
+        "matched_gt": null
+      },
+      {
+        "start": 1365.4,
+        "end": 1372.2,
+        "confidence": 0.9867226481437683,
+        "result": "FP",
+        "matched_gt": null
+      }
+    ],
+    "missed_ground_truth": [
+      {
+        "index": 0,
+        "start": 0.0,
+        "end": 0.26666666666666666
+      },
+      {
+        "index": 6,
+        "start": 47.833333333333336,
+        "end": 50.166666666666664
+      },
+      {
+        "index": 10,
+        "start": 77.6,
+        "end": 78.93333333333334
+      },
+      {
+        "index": 18,
+        "start": 145.66666666666666,
+        "end": 148.66666666666666
+      },
+      {
+        "index": 19,
+        "start": 156.56666666666666,
+        "end": 158.23333333333332
+      },
+      {
+        "index": 20,
+        "start": 187.23333333333332,
+        "end": 188.9
+      },
+      {
+        "index": 27,
+        "start": 300.56666666666666,
+        "end": 304.23333333333335
+      },
+      {
+        "index": 28,
+        "start": 336.56666666666666,
+        "end": 338.9
+      },
+      {
+        "index": 31,
+        "start": 594.0,
+        "end": 597.0
+      },
+      {
+        "index": 39,
+        "start": 1164.0,
+        "end": 1167.0
+      }
+    ],
+    "known_fps_detected": 0
+  }
+}

@@ -56,6 +56,7 @@ all = [
 prismata-train = "scripts.train:main"
 prismata-detect = "scripts.detect:main"
 prismata-label = "scripts.label:main"
+prismata-eval = "scripts.evaluate:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
