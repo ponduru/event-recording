@@ -1,0 +1,119 @@
+{
+  "video_path": "data/raw/gaikwad_last10min.mp4",
+  "fps": 30.0,
+  "total_frames": 18036,
+  "duration": 601.2,
+  "threshold": 0.5,
+  "buffer_seconds": 3.0,
+  "num_deliveries": 12,
+  "deliveries": [
+    {
+      "id": 1,
+      "start_time": 9.0,
+      "end_time": 16.2,
+      "start_frame": 270,
+      "end_frame": 486,
+      "confidence": 0.6949141621589661,
+      "duration": 7.199999999999999
+    },
+    {
+      "id": 2,
+      "start_time": 104.2,
+      "end_time": 111.4,
+      "start_frame": 3126,
+      "end_frame": 3342,
+      "confidence": 0.6065569519996643,
+      "duration": 7.200000000000003
+    },
+    {
+      "id": 3,
+      "start_time": 131.0,
+      "end_time": 137.8,
+      "start_frame": 3930,
+      "end_frame": 4134,
+      "confidence": 0.6507743000984192,
+      "duration": 6.800000000000011
+    },
+    {
+      "id": 4,
+      "start_time": 157.0,
+      "end_time": 164.2,
+      "start_frame": 4710,
+      "end_frame": 4926,
+      "confidence": 0.586836040019989,
+      "duration": 7.199999999999989
+    },
+    {
+      "id": 5,
+      "start_time": 168.6,
+      "end_time": 175.4,
+      "start_frame": 5058,
+      "end_frame": 5262,
+      "confidence": 0.5353001952171326,
+      "duration": 6.800000000000011
+    },
+    {
+      "id": 6,
+      "start_time": 185.8,
+      "end_time": 193.4,
+      "start_frame": 5574,
+      "end_frame": 5802,
+      "confidence": 0.6880661845207214,
+      "duration": 7.599999999999994
+    },
+    {
+      "id": 7,
+      "start_time": 296.2,
+      "end_time": 302.6,
+      "start_frame": 8886,
+      "end_frame": 9078,
+      "confidence": 0.6423600316047668,
+      "duration": 6.400000000000034
+    },
+    {
+      "id": 8,
+      "start_time": 356.2,
+      "end_time": 362.2,
+      "start_frame": 10686,
+      "end_frame": 10866,
+      "confidence": 0.5364234447479248,
+      "duration": 6.0
+    },
+    {
+      "id": 9,
+      "start_time": 414.2,
+      "end_time": 420.6,
+      "start_frame": 12426,
+      "end_frame": 12618,
+      "confidence": 0.5539206266403198,
+      "duration": 6.400000000000034
+    },
+    {
+      "id": 10,
+      "start_time": 466.2,
+      "end_time": 472.2,
+      "start_frame": 13986,
+      "end_frame": 14166,
+      "confidence": 0.5649186968803406,
+      "duration": 6.0
+    },
+    {
+      "id": 11,
+      "start_time": 497.4,
+      "end_time": 505.4,
+      "start_frame": 14922,
+      "end_frame": 15162,
+      "confidence": 0.6240019798278809,
+      "duration": 8.0
+    },
+    {
+      "id": 12,
+      "start_time": 523.8,
+      "end_time": 530.6,
+      "start_frame": 15713,
+      "end_frame": 15918,
+      "confidence": 0.6898238062858582,
+      "duration": 6.800000000000068
+    }
+  ]
+}

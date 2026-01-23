@@ -1,0 +1,41 @@
+# Soccer domain configuration
+# Usage: python -m scripts.train --domain soccer --config configs/domains/soccer.yaml
+
+# Domain
+domain: soccer
+
+# Data paths
+labels_dir: data/soccer/labels
+videos_dir: data/soccer/raw
+
+# Data processing
+window_size: 12         # Longer window for soccer events
+frame_size: [224, 224]  # Frame dimensions (width, height)
+target_fps: 10.0        # Target FPS for frame extraction
+negative_ratio: 1.5     # More negatives for harder task
+
+# Model architecture
+backbone: resnet34      # Slightly larger backbone for more complex events
+pretrained: true        # Use ImageNet pretrained weights
+freeze_backbone: false  # Freeze backbone weights during training
+feature_dim: 512        # Frame feature dimension
+hidden_dim: 256         # LSTM hidden dimension
+num_lstm_layers: 2      # Number of LSTM layers
+dropout: 0.3            # Dropout probability
+
+# Training parameters
+batch_size: 8
+num_workers: 4
+learning_rate: 0.0001
+weight_decay: 0.01
+num_epochs: 50
+early_stopping_patience: 10
+val_ratio: 0.2
+
+# Output
+output_dir: models
+experiment_name: soccer_detector
+
+# Logging (optional)
+use_wandb: false
+wandb_project: event-detection

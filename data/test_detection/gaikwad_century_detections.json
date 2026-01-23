@@ -1,0 +1,534 @@
+{
+  "video_path": "data/raw/gaikwad_century.mp4",
+  "fps": 30.0,
+  "total_frames": 41436,
+  "duration": 1381.2,
+  "threshold": 0.5,
+  "buffer_seconds": 3.0,
+  "domain": "cricket",
+  "num_events": 58,
+  "events": [
+    {
+      "id": 1,
+      "start_time": 0,
+      "end_time": 6.2,
+      "start_frame": 0,
+      "end_frame": 186,
+      "confidence": 0.993127703666687,
+      "duration": 6.2
+    },
+    {
+      "id": 2,
+      "start_time": 7.0,
+      "end_time": 15.4,
+      "start_frame": 210,
+      "end_frame": 462,
+      "confidence": 0.9925423860549927,
+      "duration": 8.4
+    },
+    {
+      "id": 3,
+      "start_time": 17.8,
+      "end_time": 25.8,
+      "start_frame": 534,
+      "end_frame": 774,
+      "confidence": 0.9926031231880188,
+      "duration": 8.0
+    },
+    {
+      "id": 4,
+      "start_time": 26.6,
+      "end_time": 36.2,
+      "start_frame": 798,
+      "end_frame": 1086,
+      "confidence": 0.9930041432380676,
+      "duration": 9.600000000000001
+    },
+    {
+      "id": 5,
+      "start_time": 39.8,
+      "end_time": 53.4,
+      "start_frame": 1194,
+      "end_frame": 1602,
+      "confidence": 0.9929279685020447,
+      "duration": 13.600000000000001
+    },
+    {
+      "id": 6,
+      "start_time": 54.2,
+      "end_time": 64.2,
+      "start_frame": 1626,
+      "end_frame": 1926,
+      "confidence": 0.9927384257316589,
+      "duration": 10.0
+    },
+    {
+      "id": 7,
+      "start_time": 61.8,
+      "end_time": 69.4,
+      "start_frame": 1854,
+      "end_frame": 2082,
+      "confidence": 0.9924954175949097,
+      "duration": 7.6000000000000085
+    },
+    {
+      "id": 8,
+      "start_time": 70.2,
+      "end_time": 82.2,
+      "start_frame": 2106,
+      "end_frame": 2466,
+      "confidence": 0.9927001595497131,
+      "duration": 12.0
+    },
+    {
+      "id": 9,
+      "start_time": 80.2,
+      "end_time": 89.0,
+      "start_frame": 2406,
+      "end_frame": 2670,
+      "confidence": 0.9925215840339661,
+      "duration": 8.799999999999997
+    },
+    {
+      "id": 10,
+      "start_time": 92.6,
+      "end_time": 102.2,
+      "start_frame": 2778,
+      "end_frame": 3066,
+      "confidence": 0.9924210906028748,
+      "duration": 9.600000000000009
+    },
+    {
+      "id": 11,
+      "start_time": 99.0,
+      "end_time": 107.4,
+      "start_frame": 2970,
+      "end_frame": 3222,
+      "confidence": 0.9924047589302063,
+      "duration": 8.400000000000006
+    },
+    {
+      "id": 12,
+      "start_time": 103.8,
+      "end_time": 110.6,
+      "start_frame": 3114,
+      "end_frame": 3318,
+      "confidence": 0.9914727210998535,
+      "duration": 6.799999999999997
+    },
+    {
+      "id": 13,
+      "start_time": 112.2,
+      "end_time": 121.0,
+      "start_frame": 3366,
+      "end_frame": 3630,
+      "confidence": 0.9922747015953064,
+      "duration": 8.799999999999997
+    },
+    {
+      "id": 14,
+      "start_time": 125.80000000000001,
+      "end_time": 134.2,
+      "start_frame": 3774,
+      "end_frame": 4025,
+      "confidence": 0.9908856749534607,
+      "duration": 8.399999999999977
+    },
+    {
+      "id": 15,
+      "start_time": 133.8,
+      "end_time": 143.4,
+      "start_frame": 4014,
+      "end_frame": 4302,
+      "confidence": 0.9913267493247986,
+      "duration": 9.599999999999994
+    },
+    {
+      "id": 16,
+      "start_time": 195.4,
+      "end_time": 203.0,
+      "start_frame": 5862,
+      "end_frame": 6090,
+      "confidence": 0.9921725988388062,
+      "duration": 7.599999999999994
+    },
+    {
+      "id": 17,
+      "start_time": 207.8,
+      "end_time": 215.4,
+      "start_frame": 6234,
+      "end_frame": 6462,
+      "confidence": 0.9924967288970947,
+      "duration": 7.599999999999994
+    },
+    {
+      "id": 18,
+      "start_time": 225.0,
+      "end_time": 232.6,
+      "start_frame": 6750,
+      "end_frame": 6978,
+      "confidence": 0.9925643801689148,
+      "duration": 7.599999999999994
+    },
+    {
+      "id": 19,
+      "start_time": 232.6,
+      "end_time": 241.0,
+      "start_frame": 6978,
+      "end_frame": 7230,
+      "confidence": 0.9927156567573547,
+      "duration": 8.400000000000006
+    },
+    {
+      "id": 20,
+      "start_time": 247.8,
+      "end_time": 255.4,
+      "start_frame": 7434,
+      "end_frame": 7662,
+      "confidence": 0.9921811819076538,
+      "duration": 7.599999999999994
+    },
+    {
+      "id": 21,
+      "start_time": 262.2,
+      "end_time": 270.6,
+      "start_frame": 7866,
+      "end_frame": 8118,
+      "confidence": 0.992296040058136,
+      "duration": 8.400000000000034
+    },
+    {
+      "id": 22,
+      "start_time": 272.2,
+      "end_time": 279.8,
+      "start_frame": 8166,
+      "end_frame": 8394,
+      "confidence": 0.9916937947273254,
+      "duration": 7.600000000000023
+    },
+    {
+      "id": 23,
+      "start_time": 283.4,
+      "end_time": 289.4,
+      "start_frame": 8502,
+      "end_frame": 8682,
+      "confidence": 0.6060779690742493,
+      "duration": 6.0
+    },
+    {
+      "id": 24,
+      "start_time": 349.8,
+      "end_time": 357.8,
+      "start_frame": 10494,
+      "end_frame": 10734,
+      "confidence": 0.9924098253250122,
+      "duration": 8.0
+    },
+    {
+      "id": 25,
+      "start_time": 391.4,
+      "end_time": 401.0,
+      "start_frame": 11742,
+      "end_frame": 12030,
+      "confidence": 0.992085874080658,
+      "duration": 9.600000000000023
+    },
+    {
+      "id": 26,
+      "start_time": 420.2,
+      "end_time": 428.2,
+      "start_frame": 12606,
+      "end_frame": 12846,
+      "confidence": 0.992027223110199,
+      "duration": 8.0
+    },
+    {
+      "id": 27,
+      "start_time": 433.8,
+      "end_time": 441.0,
+      "start_frame": 13014,
+      "end_frame": 13230,
+      "confidence": 0.9921370148658752,
+      "duration": 7.199999999999989
+    },
+    {
+      "id": 28,
+      "start_time": 443.4,
+      "end_time": 451.0,
+      "start_frame": 13302,
+      "end_frame": 13530,
+      "confidence": 0.9922178983688354,
+      "duration": 7.600000000000023
+    },
+    {
+      "id": 29,
+      "start_time": 485.4,
+      "end_time": 493.8,
+      "start_frame": 14562,
+      "end_frame": 14814,
+      "confidence": 0.9919702410697937,
+      "duration": 8.400000000000034
+    },
+    {
+      "id": 30,
+      "start_time": 612.6,
+      "end_time": 618.6,
+      "start_frame": 18378,
+      "end_frame": 18558,
+      "confidence": 0.5312393307685852,
+      "duration": 6.0
+    },
+    {
+      "id": 31,
+      "start_time": 625.0,
+      "end_time": 633.0,
+      "start_frame": 18750,
+      "end_frame": 18990,
+      "confidence": 0.9922720193862915,
+      "duration": 8.0
+    },
+    {
+      "id": 32,
+      "start_time": 657.4,
+      "end_time": 665.4,
+      "start_frame": 19722,
+      "end_frame": 19962,
+      "confidence": 0.9916685819625854,
+      "duration": 8.0
+    },
+    {
+      "id": 33,
+      "start_time": 669.4,
+      "end_time": 677.4,
+      "start_frame": 20082,
+      "end_frame": 20322,
+      "confidence": 0.991746187210083,
+      "duration": 8.0
+    },
+    {
+      "id": 34,
+      "start_time": 683.8,
+      "end_time": 691.4,
+      "start_frame": 20514,
+      "end_frame": 20742,
+      "confidence": 0.9923215508460999,
+      "duration": 7.600000000000023
+    },
+    {
+      "id": 35,
+      "start_time": 697.8,
+      "end_time": 705.0,
+      "start_frame": 20934,
+      "end_frame": 21150,
+      "confidence": 0.9921686053276062,
+      "duration": 7.2000000000000455
+    },
+    {
+      "id": 36,
+      "start_time": 706.6,
+      "end_time": 713.8,
+      "start_frame": 21198,
+      "end_frame": 21414,
+      "confidence": 0.991211473941803,
+      "duration": 7.199999999999932
+    },
+    {
+      "id": 37,
+      "start_time": 718.6,
+      "end_time": 727.8,
+      "start_frame": 21558,
+      "end_frame": 21834,
+      "confidence": 0.9923204779624939,
+      "duration": 9.199999999999932
+    },
+    {
+      "id": 38,
+      "start_time": 753.4,
+      "end_time": 760.2,
+      "start_frame": 22602,
+      "end_frame": 22806,
+      "confidence": 0.9921513795852661,
+      "duration": 6.800000000000068
+    },
+    {
+      "id": 39,
+      "start_time": 773.4,
+      "end_time": 780.6,
+      "start_frame": 23202,
+      "end_frame": 23418,
+      "confidence": 0.9917735457420349,
+      "duration": 7.2000000000000455
+    },
+    {
+      "id": 40,
+      "start_time": 789.8,
+      "end_time": 797.4,
+      "start_frame": 23694,
+      "end_frame": 23922,
+      "confidence": 0.9912734627723694,
+      "duration": 7.600000000000023
+    },
+    {
+      "id": 41,
+      "start_time": 836.2,
+      "end_time": 843.8,
+      "start_frame": 25086,
+      "end_frame": 25314,
+      "confidence": 0.990972638130188,
+      "duration": 7.599999999999909
+    },
+    {
+      "id": 42,
+      "start_time": 885.0,
+      "end_time": 893.0,
+      "start_frame": 26550,
+      "end_frame": 26790,
+      "confidence": 0.991431713104248,
+      "duration": 8.0
+    },
+    {
+      "id": 43,
+      "start_time": 895.8,
+      "end_time": 902.2,
+      "start_frame": 26874,
+      "end_frame": 27066,
+      "confidence": 0.9905080795288086,
+      "duration": 6.400000000000091
+    },
+    {
+      "id": 44,
+      "start_time": 904.6,
+      "end_time": 911.0,
+      "start_frame": 27138,
+      "end_frame": 27330,
+      "confidence": 0.9839868545532227,
+      "duration": 6.399999999999977
+    },
+    {
+      "id": 45,
+      "start_time": 911.8,
+      "end_time": 919.4,
+      "start_frame": 27354,
+      "end_frame": 27582,
+      "confidence": 0.9916634559631348,
+      "duration": 7.600000000000023
+    },
+    {
+      "id": 46,
+      "start_time": 937.4,
+      "end_time": 945.8,
+      "start_frame": 28122,
+      "end_frame": 28374,
+      "confidence": 0.9919872283935547,
+      "duration": 8.399999999999977
+    },
+    {
+      "id": 47,
+      "start_time": 966.6,
+      "end_time": 975.0,
+      "start_frame": 28998,
+      "end_frame": 29250,
+      "confidence": 0.9926155805587769,
+      "duration": 8.399999999999977
+    },
+    {
+      "id": 48,
+      "start_time": 999.4,
+      "end_time": 1005.8,
+      "start_frame": 29982,
+      "end_frame": 30174,
+      "confidence": 0.9903451800346375,
+      "duration": 6.399999999999977
+    },
+    {
+      "id": 49,
+      "start_time": 1005.4,
+      "end_time": 1012.2,
+      "start_frame": 30162,
+      "end_frame": 30366,
+      "confidence": 0.9886787533760071,
+      "duration": 6.800000000000068
+    },
+    {
+      "id": 50,
+      "start_time": 1035.8,
+      "end_time": 1042.6,
+      "start_frame": 31074,
+      "end_frame": 31277,
+      "confidence": 0.9918700456619263,
+      "duration": 6.7999999999999545
+    },
+    {
+      "id": 51,
+      "start_time": 1077.0,
+      "end_time": 1083.8,
+      "start_frame": 32310,
+      "end_frame": 32514,
+      "confidence": 0.991442859172821,
+      "duration": 6.7999999999999545
+    },
+    {
+      "id": 52,
+      "start_time": 1136.2,
+      "end_time": 1143.4,
+      "start_frame": 34086,
+      "end_frame": 34302,
+      "confidence": 0.9915675520896912,
+      "duration": 7.2000000000000455
+    },
+    {
+      "id": 53,
+      "start_time": 1195.0,
+      "end_time": 1203.8,
+      "start_frame": 35850,
+      "end_frame": 36114,
+      "confidence": 0.9921082854270935,
+      "duration": 8.799999999999955
+    },
+    {
+      "id": 54,
+      "start_time": 1247.0,
+      "end_time": 1253.8,
+      "start_frame": 37410,
+      "end_frame": 37614,
+      "confidence": 0.9909595251083374,
+      "duration": 6.7999999999999545
+    },
+    {
+      "id": 55,
+      "start_time": 1278.2,
+      "end_time": 1287.4,
+      "start_frame": 38346,
+      "end_frame": 38622,
+      "confidence": 0.9918360114097595,
+      "duration": 9.200000000000045
+    },
+    {
+      "id": 56,
+      "start_time": 1304.6,
+      "end_time": 1312.2,
+      "start_frame": 39138,
+      "end_frame": 39366,
+      "confidence": 0.9919499158859253,
+      "duration": 7.600000000000136
+    },
+    {
+      "id": 57,
+      "start_time": 1333.0,
+      "end_time": 1339.8,
+      "start_frame": 39990,
+      "end_frame": 40194,
+      "confidence": 0.9831750988960266,
+      "duration": 6.7999999999999545
+    },
+    {
+      "id": 58,
+      "start_time": 1365.4,
+      "end_time": 1372.2,
+      "start_frame": 40962,
+      "end_frame": 41166,
+      "confidence": 0.9867226481437683,
+      "duration": 6.7999999999999545
+    }
+  ]
+}

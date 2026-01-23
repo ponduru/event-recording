@@ -1,0 +1,41 @@
+# Warehouse domain configuration
+# Usage: python -m scripts.train --domain warehouse --config configs/domains/warehouse.yaml
+
+# Domain
+domain: warehouse
+
+# Data paths
+labels_dir: data/warehouse/labels
+videos_dir: data/warehouse/raw
+
+# Data processing
+window_size: 16         # Longer window for warehouse activities
+frame_size: [224, 224]  # Frame dimensions (width, height)
+target_fps: 5.0         # Lower FPS for surveillance cameras
+negative_ratio: 2.0     # More negatives for rare events
+
+# Model architecture
+backbone: resnet18      # Efficient backbone for surveillance
+pretrained: true        # Use ImageNet pretrained weights
+freeze_backbone: false  # Freeze backbone weights during training
+feature_dim: 512        # Frame feature dimension
+hidden_dim: 256         # LSTM hidden dimension
+num_lstm_layers: 2      # Number of LSTM layers
+dropout: 0.3            # Dropout probability
+
+# Training parameters
+batch_size: 8
+num_workers: 4
+learning_rate: 0.0001
+weight_decay: 0.01
+num_epochs: 50
+early_stopping_patience: 10
+val_ratio: 0.2
+
+# Output
+output_dir: models
+experiment_name: warehouse_detector
+
+# Logging (optional)
+use_wandb: false
+wandb_project: event-detection

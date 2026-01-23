@@ -1,0 +1,375 @@
+{
+  "video_path": "data/raw/gaikwad_century.mp4",
+  "fps": 30.0,
+  "total_frames": 41436,
+  "width": 640,
+  "height": 360,
+  "deliveries": [
+    {
+      "id": "394d7b24",
+      "start_frame": 0,
+      "end_frame": 8,
+      "delivery_type": null,
+      "outcome": null,
+      "notes": ""
+    },
+    {
+      "id": "b89c72e7",
+      "start_frame": 9,
+      "end_frame": 77,
+      "delivery_type": null,
+      "outcome": null,
+      "notes": ""
+    },
+    {
+      "id": "a93f1864",
+      "start_frame": 294,
+      "end_frame": 345,
+      "delivery_type": null,
+      "outcome": null,
+      "notes": ""
+    },
+    {
+      "id": "adbbf74c",
+      "start_frame": 619,
+      "end_frame": 678,
+      "delivery_type": null,
+      "outcome": null,
+      "notes": ""
+    },
+    {
+      "id": "6ed031ad",
+      "start_frame": 908,
+      "end_frame": 988,
+      "delivery_type": null,
+      "outcome": null,
+      "notes": ""
+    },
+    {
+      "id": "1b019699",
+      "start_frame": 1275,
+      "end_frame": 1345,
+      "delivery_type": null,
+      "outcome": null,
+      "notes": ""
+    },
+    {
+      "id": "19a6bd09",
+      "start_frame": 1435,
+      "end_frame": 1505,
+      "delivery_type": null,
+      "outcome": null,
+      "notes": ""
+    },
+    {
+      "id": "5e5a442b",
+      "start_frame": 1715,
+      "end_frame": 1785,
+      "delivery_type": null,
+      "outcome": null,
+      "notes": ""
+    },
+    {
+      "id": "4331cced",
+      "start_frame": 1940,
+      "end_frame": 2000,
+      "delivery_type": null,
+      "outcome": null,
+      "notes": ""
+    },
+    {
+      "id": "4e85889a",
+      "start_frame": 2193,
+      "end_frame": 2253,
+      "delivery_type": null,
+      "outcome": null,
+      "notes": ""
+    },
+    {
+      "id": "794ad884",
+      "start_frame": 2328,
+      "end_frame": 2368,
+      "delivery_type": null,
+      "outcome": null,
+      "notes": ""
+    },
+    {
+      "id": "5833d6ec",
+      "start_frame": 2498,
+      "end_frame": 2548,
+      "delivery_type": null,
+      "outcome": null,
+      "notes": ""
+    },
+    {
+      "id": "88d0fea8",
+      "start_frame": 2868,
+      "end_frame": 2978,
+      "delivery_type": null,
+      "outcome": null,
+      "notes": ""
+    },
+    {
+      "id": "0f8f56e2",
+      "start_frame": 3070,
+      "end_frame": 3130,
+      "delivery_type": null,
+      "outcome": null,
+      "notes": ""
+    },
+    {
+      "id": "6aa7c0a9",
+      "start_frame": 3210,
+      "end_frame": 3280,
+      "delivery_type": null,
+      "outcome": null,
+      "notes": ""
+    },
+    {
+      "id": "8145dd09",
+      "start_frame": 3460,
+      "end_frame": 3530,
+      "delivery_type": null,
+      "outcome": null,
+      "notes": ""
+    },
+    {
+      "id": "7579d764",
+      "start_frame": 3870,
+      "end_frame": 3940,
+      "delivery_type": null,
+      "outcome": null,
+      "notes": ""
+    },
+    {
+      "id": "11eaff98",
+      "start_frame": 4110,
+      "end_frame": 4180,
+      "delivery_type": null,
+      "outcome": null,
+      "notes": ""
+    },
+    {
+      "id": "64a6fd1e",
+      "start_frame": 4370,
+      "end_frame": 4460,
+      "delivery_type": null,
+      "outcome": null,
+      "notes": ""
+    },
+    {
+      "id": "e2e8eff3",
+      "start_frame": 4697,
+      "end_frame": 4747,
+      "delivery_type": null,
+      "outcome": null,
+      "notes": ""
+    },
+    {
+      "id": "89424519",
+      "start_frame": 5617,
+      "end_frame": 5667,
+      "delivery_type": null,
+      "outcome": null,
+      "notes": ""
+    },
+    {
+      "id": "b5a48bf2",
+      "start_frame": 5947,
+      "end_frame": 6007,
+      "delivery_type": null,
+      "outcome": null,
+      "notes": ""
+    },
+    {
+      "id": "ea93141b",
+      "start_frame": 6327,
+      "end_frame": 6397,
+      "delivery_type": null,
+      "outcome": null,
+      "notes": ""
+    },
+    {
+      "id": "96186cc5",
+      "start_frame": 7427,
+      "end_frame": 7667,
+      "delivery_type": null,
+      "outcome": null,
+      "notes": ""
+    },
+    {
+      "id": "dfe1dd46",
+      "start_frame": 7857,
+      "end_frame": 8057,
+      "delivery_type": null,
+      "outcome": null,
+      "notes": ""
+    },
+    {
+      "id": "01dc7ec1",
+      "start_frame": 8247,
+      "end_frame": 8317,
+      "delivery_type": null,
+      "outcome": null,
+      "notes": ""
+    },
+    {
+      "id": "7b2eb8ca",
+      "start_frame": 8577,
+      "end_frame": 8657,
+      "delivery_type": null,
+      "outcome": null,
+      "notes": ""
+    },
+    {
+      "id": "7a1e4ea5",
+      "start_frame": 9017,
+      "end_frame": 9127,
+      "delivery_type": null,
+      "outcome": null,
+      "notes": ""
+    },
+    {
+      "id": "2fbcc822",
+      "start_frame": 10097,
+      "end_frame": 10167,
+      "delivery_type": null,
+      "outcome": null,
+      "notes": ""
+    },
+    {
+      "id": "98fbebe4",
+      "start_frame": 10557,
+      "end_frame": 10697,
+      "delivery_type": null,
+      "outcome": null,
+      "notes": ""
+    },
+    {
+      "id": "e811a128",
+      "start_frame": 11837,
+      "end_frame": 11957,
+      "delivery_type": null,
+      "outcome": null,
+      "notes": ""
+    },
+    {
+      "id": "363601df",
+      "start_frame": 17820,
+      "end_frame": 17910,
+      "delivery_type": null,
+      "outcome": null,
+      "notes": "Missed by model - from unreviewed_023"
+    },
+    {
+      "id": "1853b0f4",
+      "start_frame": 23700,
+      "end_frame": 23916,
+      "delivery_type": null,
+      "outcome": null,
+      "notes": "Auto-detected from last 10 min (detection #1)"
+    },
+    {
+      "id": "f20d764b",
+      "start_frame": 26556,
+      "end_frame": 26772,
+      "delivery_type": null,
+      "outcome": null,
+      "notes": "Auto-detected from last 10 min (detection #2)"
+    },
+    {
+      "id": "8b4c3d37",
+      "start_frame": 27360,
+      "end_frame": 27564,
+      "delivery_type": null,
+      "outcome": null,
+      "notes": "Auto-detected from last 10 min (detection #3)"
+    },
+    {
+      "id": "f150fbd4",
+      "start_frame": 28140,
+      "end_frame": 28356,
+      "delivery_type": null,
+      "outcome": null,
+      "notes": "Auto-detected from last 10 min (detection #4)"
+    },
+    {
+      "id": "f6f1c435",
+      "start_frame": 29004,
+      "end_frame": 29232,
+      "delivery_type": null,
+      "outcome": null,
+      "notes": "Auto-detected from last 10 min (detection #6)"
+    },
+    {
+      "id": "d68f4ef7",
+      "start_frame": 32316,
+      "end_frame": 32507,
+      "delivery_type": null,
+      "outcome": null,
+      "notes": "Auto-detected from last 10 min (detection #7)"
+    },
+    {
+      "id": "7dae5a34",
+      "start_frame": 34116,
+      "end_frame": 34296,
+      "delivery_type": null,
+      "outcome": null,
+      "notes": "Auto-detected from last 10 min (detection #8)"
+    },
+    {
+      "id": "a733a432",
+      "start_frame": 34920,
+      "end_frame": 35010,
+      "delivery_type": null,
+      "outcome": null,
+      "notes": "Missed by model - from unreviewed_049"
+    },
+    {
+      "id": "6d19921b",
+      "start_frame": 35856,
+      "end_frame": 36048,
+      "delivery_type": null,
+      "outcome": null,
+      "notes": "Auto-detected from last 10 min (detection #9)"
+    },
+    {
+      "id": "790fec40",
+      "start_frame": 37416,
+      "end_frame": 37596,
+      "delivery_type": null,
+      "outcome": null,
+      "notes": "Auto-detected from last 10 min (detection #10)"
+    },
+    {
+      "id": "85f4843e",
+      "start_frame": 38352,
+      "end_frame": 38592,
+      "delivery_type": null,
+      "outcome": null,
+      "notes": "Auto-detected from last 10 min (detection #11)"
+    },
+    {
+      "id": "f4453e23",
+      "start_frame": 39144,
+      "end_frame": 39348,
+      "delivery_type": null,
+      "outcome": null,
+      "notes": "Auto-detected from last 10 min (detection #12)"
+    }
+  ],
+  "false_positives": [
+    {
+      "id": "fp_001",
+      "start_frame": 28488,
+      "end_frame": 28692,
+      "notes": "Detection 005 from last 10 min - not a real delivery"
+    },
+    {
+      "id": "fp_002",
+      "start_frame": 31362,
+      "end_frame": 31614,
+      "notes": "Detection 059 - not a real delivery"
+    }
+  ]
+}
