@@ -188,6 +188,78 @@ The default architecture uses:
 
 Each domain can customize these components as needed.
 
+## Local Development & Testing
+
+You can test everything locally without deploying to AWS using Docker Compose.
+
+### Prerequisites
+
+- Docker and Docker Compose
+- Python 3.11+
+
+### Option 1: Local Storage (Default)
+
+This uses the local filesystem for videos, labels, and models — no S3 needed.
+
+```bash
+# Start PostgreSQL and Redis
+docker-compose up -d postgres redis
+
+# Run database migrations
+alembic upgrade head
+
+# Launch the labeling UI
+prismata-label --domain cricket
+```
+
+Environment (defaults, no `.env` file needed):
+```
+PRISMATA_STORAGE_BACKEND=local
+```
+
+Videos go in `data/raw/`, labels in `data/labels/`, models in `models/`.
+
+### Option 2: Test S3 Code Paths with LocalStack
+
+This runs a local S3-compatible service so you can test the S3 storage backend without an AWS account.
+
+```bash
+# Start all services including LocalStack
+docker-compose up -d postgres redis localstack
+
+# Run database migrations
+alembic upgrade head
+```
+
+Create a `.env` file (or export these variables):
+```bash
+PRISMATA_STORAGE_BACKEND=s3
+PRISMATA_S3_BUCKET=prismata-data-local
+AWS_ENDPOINT_URL=http://localhost:4566
+AWS_REGION=us-east-1
+AWS_ACCESS_KEY_ID=test
+AWS_SECRET_ACCESS_KEY=test
+```
+
+The LocalStack init script (`infrastructure/localstack/init-buckets.sh`) automatically creates the `prismata-data-local` bucket on startup. In single-bucket mode, keys are auto-prefixed by category (`videos/`, `labels/`, `models/`, `detections/`).
+
+Upload a test video:
+```bash
+aws --endpoint-url=http://localhost:4566 s3 cp my_video.mp4 s3://prismata-data-local/videos/my_video.mp4
+```
+
+Then launch the UI:
+```bash
+prismata-label --domain cricket
+```
+
+### Stopping Services
+
+```bash
+docker-compose down        # stop containers
+docker-compose down -v     # stop and remove volumes (resets database)
+```
+
 ## License
 
 MIT

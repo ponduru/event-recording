@@ -1,0 +1,81 @@
+{
+  "video_path": "data/raw/\ud83c\udf86 Moeen & Bairstow Fireworks With The Bat IN FULL \uff5c England v South Africa_part018.mp4",
+  "fps": 29.97002997002997,
+  "total_frames": 17982,
+  "width": 640,
+  "height": 360,
+  "deliveries": [
+    {
+      "id": "e6616c62",
+      "start_frame": 1640,
+      "end_frame": 1759,
+      "delivery_type": null,
+      "outcome": null,
+      "notes": ""
+    },
+    {
+      "id": "23cb9402",
+      "start_frame": 2720,
+      "end_frame": 2839,
+      "delivery_type": null,
+      "outcome": null,
+      "notes": ""
+    },
+    {
+      "id": "9f7b8c20",
+      "start_frame": 3800,
+      "end_frame": 3959,
+      "delivery_type": null,
+      "outcome": null,
+      "notes": ""
+    },
+    {
+      "id": "dd1d8d04",
+      "start_frame": 6440,
+      "end_frame": 6559,
+      "delivery_type": null,
+      "outcome": null,
+      "notes": ""
+    },
+    {
+      "id": "c8ed3815",
+      "start_frame": 10160,
+      "end_frame": 10319,
+      "delivery_type": null,
+      "outcome": null,
+      "notes": ""
+    },
+    {
+      "id": "67773711",
+      "start_frame": 11200,
+      "end_frame": 11319,
+      "delivery_type": null,
+      "outcome": null,
+      "notes": ""
+    },
+    {
+      "id": "76e2e593",
+      "start_frame": 12240,
+      "end_frame": 12359,
+      "delivery_type": null,
+      "outcome": null,
+      "notes": ""
+    },
+    {
+      "id": "6fa0eea2",
+      "start_frame": 13280,
+      "end_frame": 13479,
+      "delivery_type": null,
+      "outcome": null,
+      "notes": ""
+    },
+    {
+      "id": "55621909",
+      "start_frame": 14640,
+      "end_frame": 14759,
+      "delivery_type": null,
+      "outcome": null,
+      "notes": ""
+    }
+  ]
+}

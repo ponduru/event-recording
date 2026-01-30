@@ -14,6 +14,14 @@ import torch
 from albumentations.pytorch import ToTensorV2
 from torch.utils.data import Dataset
 
+# Try to import Decord for faster video loading
+try:
+    from decord import VideoReader, cpu
+
+    HAS_DECORD = True
+except ImportError:
+    HAS_DECORD = False
+
 
 class BaseEventDataset(Dataset, ABC):
     """Abstract base class for event detection training datasets.
@@ -166,6 +174,9 @@ class BaseInferenceDataset(Dataset):
     """Base class for inference datasets.
 
     Creates overlapping windows for continuous prediction on a single video.
+    Uses Decord for fast batch frame loading when available, with OpenCV fallback.
+
+    Note: VideoReader is lazily initialized to support multiprocessing DataLoader.
     """
 
     def __init__(
@@ -190,12 +201,22 @@ class BaseInferenceDataset(Dataset):
         self.stride = stride
         self.frame_size = frame_size
         self.target_fps = target_fps
+        self.use_decord = HAS_DECORD
 
-        # Get video info
-        cap = cv2.VideoCapture(self.video_path)
-        self.fps = cap.get(cv2.CAP_PROP_FPS)
-        self.total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-        cap.release()
+        # Lazy-initialized video reader (created per worker for multiprocessing)
+        self._vr = None  # Decord VideoReader
+
+        # Get video metadata (using Decord if available, else OpenCV)
+        if HAS_DECORD:
+            vr = VideoReader(self.video_path, ctx=cpu(0))
+            self.fps = vr.get_avg_fps()
+            self.total_frames = len(vr)
+            del vr  # Release - will be recreated lazily per worker
+        else:
+            cap = cv2.VideoCapture(self.video_path)
+            self.fps = cap.get(cv2.CAP_PROP_FPS)
+            self.total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+            cap.release()
 
         self.frame_step = max(1, int(self.fps / self.target_fps))
 
@@ -225,8 +246,35 @@ class BaseInferenceDataset(Dataset):
             ]
         )
 
-    def _load_frames(self, start_frame: int) -> list[np.ndarray]:
-        """Load a window of frames."""
+    def _get_video_reader(self):
+        """Lazily initialize VideoReader (per worker for multiprocessing support)."""
+        if self._vr is None and self.use_decord:
+            self._vr = VideoReader(self.video_path, ctx=cpu(0))
+        return self._vr
+
+    def _load_frames_decord(self, start_frame: int) -> list[np.ndarray]:
+        """Load frames using Decord's efficient batch loading."""
+        vr = self._get_video_reader()
+
+        # Calculate frame indices
+        indices = [start_frame + i * self.frame_step for i in range(self.window_size)]
+        # Clamp indices to valid range
+        indices = [min(idx, len(vr) - 1) for idx in indices]
+
+        # Single batch call - much faster than individual seeks
+        frames = vr.get_batch(indices).asnumpy()  # Returns (N, H, W, C) RGB
+
+        # Resize if needed
+        result = []
+        for frame in frames:
+            if (frame.shape[1], frame.shape[0]) != self.frame_size:
+                frame = cv2.resize(frame, self.frame_size)
+            result.append(frame)
+
+        return result
+
+    def _load_frames_opencv(self, start_frame: int) -> list[np.ndarray]:
+        """Load frames using OpenCV (fallback)."""
         cap = cv2.VideoCapture(self.video_path)
         frames = []
 
@@ -249,6 +297,13 @@ class BaseInferenceDataset(Dataset):
             cap.release()
 
         return frames
+
+    def _load_frames(self, start_frame: int) -> list[np.ndarray]:
+        """Load a window of frames using the best available method."""
+        if self.use_decord:
+            return self._load_frames_decord(start_frame)
+        else:
+            return self._load_frames_opencv(start_frame)
 
     def __len__(self) -> int:
         return len(self.windows)

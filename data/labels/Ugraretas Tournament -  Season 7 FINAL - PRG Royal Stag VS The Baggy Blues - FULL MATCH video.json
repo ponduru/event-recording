@@ -1,0 +1,25 @@
+{
+  "video_path": "data/raw/Ugraretas Tournament -  Season 7 FINAL - PRG Royal Stag VS The Baggy Blues - FULL MATCH video.mp4",
+  "fps": 25.0,
+  "total_frames": 205572,
+  "width": 640,
+  "height": 360,
+  "deliveries": [
+    {
+      "id": "023f622b",
+      "start_frame": 4765,
+      "end_frame": 4815,
+      "delivery_type": null,
+      "outcome": null,
+      "notes": ""
+    },
+    {
+      "id": "f4b7b366",
+      "start_frame": 5627,
+      "end_frame": 5685,
+      "delivery_type": null,
+      "outcome": null,
+      "notes": ""
+    }
+  ]
+}

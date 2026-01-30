@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
+from typing import Callable, Optional
 
 import torch
 import torch.nn as nn
@@ -300,8 +300,13 @@ class Trainer:
 
         return avg_loss, metrics
 
-    def train(self) -> nn.Module:
+    def train(self, progress_callback: Optional[Callable] = None) -> nn.Module:
         """Run full training loop.
+
+        Args:
+            progress_callback: Optional callback function that receives a dict with
+                training progress (epoch, train_loss, val_loss, etc.). If the callback
+                returns False, training will be stopped early.
 
         Returns:
             Trained model
@@ -357,6 +362,22 @@ class Trainer:
                 import wandb
 
                 wandb.log(metrics.to_dict())
+
+            # Call progress callback
+            if progress_callback:
+                should_continue = progress_callback({
+                    "epoch": epoch + 1,
+                    "total_epochs": self.config.num_epochs,
+                    "train_loss": train_loss,
+                    "val_loss": val_loss,
+                    "train_acc": train_metrics["accuracy"],
+                    "val_acc": val_metrics["accuracy"],
+                    "train_f1": train_metrics["f1"],
+                    "val_f1": val_metrics["f1"],
+                })
+                if should_continue is False:
+                    print("\nTraining stopped by callback")
+                    break
 
             # Save best model
             if val_loss < self.best_val_loss:
@@ -448,5 +469,83 @@ def train_model(config: TrainingConfig) -> nn.Module:
     # Train
     trainer = Trainer(config, train_loader, val_loader)
     model = trainer.train()
+
+    return model
+
+
+def train_model_with_progress(
+    config: TrainingConfig,
+    label_files: Optional[list[Path]] = None,
+    progress_callback: Optional[Callable] = None,
+) -> Optional[nn.Module]:
+    """Train an event detector model with progress callback and optional selective videos.
+
+    Args:
+        config: Training configuration.
+        label_files: Optional list of specific label files to use. If None, uses all
+            label files in the labels_dir.
+        progress_callback: Optional callback function that receives training progress.
+            Should return True to continue training or False to stop.
+
+    Returns:
+        Trained model, or None if training was stopped.
+    """
+    from src.data.dataset import create_train_val_split_from_files
+
+    # Get domain
+    domain = DomainRegistry.get(config.domain)
+
+    # Create datasets
+    if label_files:
+        # Use specific label files
+        train_dataset, val_dataset = create_train_val_split_from_files(
+            domain=domain,
+            label_files=label_files,
+            videos_dir=config.videos_dir,
+            val_ratio=config.val_ratio,
+            window_size=config.window_size,
+            frame_size=config.frame_size,
+            target_fps=config.target_fps,
+            negative_ratio=config.negative_ratio,
+        )
+    else:
+        # Use all label files in directory
+        from src.data.dataset import create_train_val_split
+        train_dataset, val_dataset = create_train_val_split(
+            domain=domain,
+            labels_dir=config.labels_dir,
+            videos_dir=config.videos_dir,
+            val_ratio=config.val_ratio,
+            window_size=config.window_size,
+            frame_size=config.frame_size,
+            target_fps=config.target_fps,
+            negative_ratio=config.negative_ratio,
+        )
+
+    # Create data loaders
+    train_loader = DataLoader(
+        train_dataset,
+        batch_size=config.batch_size,
+        shuffle=True,
+        num_workers=config.num_workers,
+        pin_memory=True,
+    )
+
+    val_loader = DataLoader(
+        val_dataset,
+        batch_size=config.batch_size,
+        shuffle=False,
+        num_workers=config.num_workers,
+        pin_memory=True,
+    )
+
+    # Train with progress callback
+    trainer = Trainer(config, train_loader, val_loader)
+    model = trainer.train(progress_callback=progress_callback)
+
+    # Check if training was stopped early
+    if progress_callback:
+        # Training completed or was stopped
+        return model
 
     return model

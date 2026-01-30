@@ -1,0 +1,273 @@
+{
+  "video_path": "data/raw/Ist ODI \uff5c Ind Vs Aus 2023 \uff5c Highlights \uff5c Mohali.mp4",
+  "fps": 30.0,
+  "total_frames": 29098,
+  "width": 640,
+  "height": 360,
+  "deliveries": [
+    {
+      "id": "2a7385de",
+      "start_frame": 1164,
+      "end_frame": 1308,
+      "delivery_type": null,
+      "outcome": null,
+      "notes": ""
+    },
+    {
+      "id": "bd828122",
+      "start_frame": 1524,
+      "end_frame": 1668,
+      "delivery_type": null,
+      "outcome": null,
+      "notes": ""
+    },
+    {
+      "id": "a2cabbbc",
+      "start_frame": 1980,
+      "end_frame": 2136,
+      "delivery_type": null,
+      "outcome": null,
+      "notes": ""
+    },
+    {
+      "id": "5e4c3ddb",
+      "start_frame": 2352,
+      "end_frame": 2472,
+      "delivery_type": null,
+      "outcome": null,
+      "notes": ""
+    },
+    {
+      "id": "3e00a97c",
+      "start_frame": 4128,
+      "end_frame": 4248,
+      "delivery_type": null,
+      "outcome": null,
+      "notes": ""
+    },
+    {
+      "id": "3f115424",
+      "start_frame": 4620,
+      "end_frame": 4752,
+      "delivery_type": null,
+      "outcome": null,
+      "notes": ""
+    },
+    {
+      "id": "31fc57b2",
+      "start_frame": 4872,
+      "end_frame": 4992,
+      "delivery_type": null,
+      "outcome": null,
+      "notes": ""
+    },
+    {
+      "id": "6f2af533",
+      "start_frame": 8760,
+      "end_frame": 8892,
+      "delivery_type": null,
+      "outcome": null,
+      "notes": ""
+    },
+    {
+      "id": "69edbdb9",
+      "start_frame": 9456,
+      "end_frame": 9576,
+      "delivery_type": null,
+      "outcome": null,
+      "notes": ""
+    },
+    {
+      "id": "222537b9",
+      "start_frame": 9684,
+      "end_frame": 9804,
+      "delivery_type": null,
+      "outcome": null,
+      "notes": ""
+    },
+    {
+      "id": "89ddea3d",
+      "start_frame": 9888,
+      "end_frame": 10032,
+      "delivery_type": null,
+      "outcome": null,
+      "notes": ""
+    },
+    {
+      "id": "ce914f50",
+      "start_frame": 10212,
+      "end_frame": 10332,
+      "delivery_type": null,
+      "outcome": null,
+      "notes": ""
+    },
+    {
+      "id": "1b6d7ad7",
+      "start_frame": 11964,
+      "end_frame": 12084,
+      "delivery_type": null,
+      "outcome": null,
+      "notes": ""
+    },
+    {
+      "id": "ed8cdb1e",
+      "start_frame": 15420,
+      "end_frame": 15552,
+      "delivery_type": null,
+      "outcome": null,
+      "notes": ""
+    },
+    {
+      "id": "cd8f281a",
+      "start_frame": 15732,
+      "end_frame": 15852,
+      "delivery_type": null,
+      "outcome": null,
+      "notes": ""
+    },
+    {
+      "id": "d984843b",
+      "start_frame": 15960,
+      "end_frame": 16092,
+      "delivery_type": null,
+      "outcome": null,
+      "notes": ""
+    },
+    {
+      "id": "405d38cf",
+      "start_frame": 16236,
+      "end_frame": 16368,
+      "delivery_type": null,
+      "outcome": null,
+      "notes": ""
+    },
+    {
+      "id": "305c5349",
+      "start_frame": 16512,
+      "end_frame": 16644,
+      "delivery_type": null,
+      "outcome": null,
+      "notes": ""
+    },
+    {
+      "id": "47a5d400",
+      "start_frame": 16692,
+      "end_frame": 16824,
+      "delivery_type": null,
+      "outcome": null,
+      "notes": ""
+    },
+    {
+      "id": "a5b114c0",
+      "start_frame": 16968,
+      "end_frame": 17088,
+      "delivery_type": null,
+      "outcome": null,
+      "notes": ""
+    },
+    {
+      "id": "7d31285a",
+      "start_frame": 17160,
+      "end_frame": 17280,
+      "delivery_type": null,
+      "outcome": null,
+      "notes": ""
+    },
+    {
+      "id": "196567e9",
+      "start_frame": 17436,
+      "end_frame": 17556,
+      "delivery_type": null,
+      "outcome": null,
+      "notes": ""
+    },
+    {
+      "id": "2902da6d",
+      "start_frame": 17652,
+      "end_frame": 17784,
+      "delivery_type": null,
+      "outcome": null,
+      "notes": ""
+    },
+    {
+      "id": "6cfba114",
+      "start_frame": 18444,
+      "end_frame": 18564,
+      "delivery_type": null,
+      "outcome": null,
+      "notes": ""
+    },
+    {
+      "id": "d341fc2b",
+      "start_frame": 19500,
+      "end_frame": 19620,
+      "delivery_type": null,
+      "outcome": null,
+      "notes": ""
+    },
+    {
+      "id": "1ee099a4",
+      "start_frame": 19968,
+      "end_frame": 20088,
+      "delivery_type": null,
+      "outcome": null,
+      "notes": ""
+    },
+    {
+      "id": "1237159b",
+      "start_frame": 22236,
+      "end_frame": 22356,
+      "delivery_type": null,
+      "outcome": null,
+      "notes": ""
+    },
+    {
+      "id": "5bc8be53",
+      "start_frame": 22656,
+      "end_frame": 22788,
+      "delivery_type": null,
+      "outcome": null,
+      "notes": ""
+    },
+    {
+      "id": "658e4e47",
+      "start_frame": 23124,
+      "end_frame": 23244,
+      "delivery_type": null,
+      "outcome": null,
+      "notes": ""
+    },
+    {
+      "id": "9905fb79",
+      "start_frame": 23352,
+      "end_frame": 23508,
+      "delivery_type": null,
+      "outcome": null,
+      "notes": ""
+    },
+    {
+      "id": "7863ac1f",
+      "start_frame": 23640,
+      "end_frame": 23760,
+      "delivery_type": null,
+      "outcome": null,
+      "notes": ""
+    },
+    {
+      "id": "41967904",
+      "start_frame": 24264,
+      "end_frame": 24384,
+      "delivery_type": null,
+      "outcome": null,
+      "notes": ""
+    },
+    {
+      "id": "60c733cc",
+      "start_frame": 25332,
+      "end_frame": 25452,
+      "delivery_type": null,
+      "outcome": null,
+      "notes": ""
+    }
+  ]
+}

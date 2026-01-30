@@ -1,0 +1,92 @@
+{
+  "deliveries": [
+    {
+      "id": 1,
+      "start_time": 11.6,
+      "end_time": 15.6,
+      "confidence": 0.9904893636703491,
+      "status": "pending"
+    },
+    {
+      "id": 2,
+      "start_time": 58.0,
+      "end_time": 62.0,
+      "confidence": 0.9900959730148315,
+      "status": "pending"
+    },
+    {
+      "id": 3,
+      "start_time": 106.0,
+      "end_time": 111.6,
+      "confidence": 0.990200936794281,
+      "status": "pending"
+    },
+    {
+      "id": 4,
+      "start_time": 117.2,
+      "end_time": 121.2,
+      "confidence": 0.9786341190338135,
+      "status": "pending"
+    },
+    {
+      "id": 5,
+      "start_time": 133.2,
+      "end_time": 137.2,
+      "confidence": 0.9704148769378662,
+      "status": "pending"
+    },
+    {
+      "id": 6,
+      "start_time": 158.8,
+      "end_time": 164.4,
+      "confidence": 0.9912545680999756,
+      "status": "pending"
+    },
+    {
+      "id": 7,
+      "start_time": 187.6,
+      "end_time": 193.2,
+      "confidence": 0.9920217394828796,
+      "status": "pending"
+    },
+    {
+      "id": 8,
+      "start_time": 298.0,
+      "end_time": 303.6,
+      "confidence": 0.9553864002227783,
+      "status": "pending"
+    },
+    {
+      "id": 9,
+      "start_time": 416.4,
+      "end_time": 420.4,
+      "confidence": 0.9916684627532959,
+      "status": "pending"
+    },
+    {
+      "id": 10,
+      "start_time": 499.6,
+      "end_time": 505.2,
+      "confidence": 0.9905945062637329,
+      "status": "pending"
+    },
+    {
+      "id": 11,
+      "start_time": 526.8,
+      "end_time": 530.8,
+      "confidence": 0.9912838935852051,
+      "status": "pending"
+    },
+    {
+      "id": 12,
+      "start_time": 554.0,
+      "end_time": 558.0,
+      "confidence": 0.5962777137756348,
+      "status": "pending"
+    }
+  ],
+  "video_path": "data/raw/gaikwad_last10min.mp4",
+  "fps": 30.0,
+  "threshold": 0.5,
+  "detected_at": "2026-01-24 11:29:44"
+}

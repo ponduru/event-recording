@@ -1,0 +1,37 @@
+# Dockerfile for Prismata GPU Training/Inference
+# Based on PyTorch with CUDA support
+
+FROM pytorch/pytorch:2.1.0-cuda12.1-cudnn8-runtime
+
+WORKDIR /opt/prismata
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ffmpeg \
+    libgl1-mesa-glx \
+    libglib2.0-0 \
+    git \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy and install Python dependencies
+COPY pyproject.toml ./
+COPY src ./src
+
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir .[aws,gpu]
+
+# Copy remaining application code
+COPY scripts ./scripts
+COPY configs ./configs
+
+# Create directories
+RUN mkdir -p /opt/ml/input /opt/ml/output /opt/ml/model
+
+# Environment variables
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
+
+# Default command for SageMaker training
+ENTRYPOINT ["python", "-m"]
+CMD ["src.aws.job_runner"]

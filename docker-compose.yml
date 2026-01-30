@@ -1,0 +1,126 @@
+# Docker Compose for Prismata Local Development
+# Provides PostgreSQL, Redis, and optional LocalStack for S3 emulation
+
+version: "3.8"
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: prismata-postgres
+    environment:
+      POSTGRES_USER: prismata
+      POSTGRES_PASSWORD: prismata_dev_password
+      POSTGRES_DB: prismata
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U prismata"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis for caching and job queue
+  redis:
+    image: redis:7-alpine
+    container_name: prismata-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # LocalStack for S3 emulation (optional)
+  localstack:
+    image: localstack/localstack:3.0
+    container_name: prismata-localstack
+    ports:
+      - "4566:4566"
+    environment:
+      - SERVICES=s3
+      - DEBUG=0
+      - DATA_DIR=/var/lib/localstack/data
+    volumes:
+      - localstack_data:/var/lib/localstack
+      - ./infrastructure/localstack:/etc/localstack/init/ready.d
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4566/_localstack/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Streamlit UI (development mode with hot reload)
+  streamlit:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: prismata-streamlit
+    ports:
+      - "8501:8501"
+    volumes:
+      - ./src:/app/src:ro
+      - ./scripts:/app/scripts:ro
+      - ./data:/app/data
+      - ./models:/app/models
+    environment:
+      # Storage configuration
+      - PRISMATA_STORAGE_BACKEND=local
+      - PRISMATA_BASE_DIR=/app
+
+      # Database configuration (PostgreSQL)
+      - DATABASE_URL=postgresql://prismata:prismata_dev_password@postgres:5432/prismata
+      - PRISMATA_DB_HOST=postgres
+      - PRISMATA_DB_PORT=5432
+      - PRISMATA_DB_NAME=prismata
+      - PRISMATA_DB_USER=prismata
+      - PRISMATA_DB_PASSWORD=prismata_dev_password
+
+      # Redis configuration
+      - PRISMATA_REDIS_HOST=redis
+      - PRISMATA_REDIS_PORT=6379
+
+      # Streamlit configuration
+      - STREAMLIT_SERVER_PORT=8501
+      - STREAMLIT_SERVER_ADDRESS=0.0.0.0
+      - STREAMLIT_SERVER_HEADLESS=true
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8501/_stcore/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # Database migrations
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: prismata-migrate
+    command: ["python", "-c", "from src.db import Repository; Repository().create_tables(); print('Tables created')"]
+    environment:
+      - DATABASE_URL=postgresql://prismata:prismata_dev_password@postgres:5432/prismata
+    depends_on:
+      postgres:
+        condition: service_healthy
+    profiles:
+      - setup
+
+volumes:
+  postgres_data:
+  redis_data:
+  localstack_data:
+
+networks:
+  default:
+    name: prismata-network

@@ -12,8 +12,11 @@ import cv2
 import numpy as np
 import streamlit as st
 import streamlit.components.v1 as components
+import argparse
+import sys
 
 from src.utils.video import VideoMetadata, get_video_metadata
+from src.data.ui_theme import inject_theme, COLORS, status_badge, domain_badge, styled_header, training_stat_card, video_status_icon
 
 
 @dataclass
@@ -297,6 +300,91 @@ def download_youtube_video(
     return None
 
 
+def split_video(
+    video_path: Path,
+    chunk_duration_minutes: int = 10,
+    output_dir: Optional[Path] = None,
+    progress_callback=None,
+) -> list[Path]:
+    """Split a video into smaller chunks using ffmpeg.
+
+    Args:
+        video_path: Path to the video file to split.
+        chunk_duration_minutes: Duration of each chunk in minutes.
+        output_dir: Directory to save chunks. Defaults to same directory as video.
+        progress_callback: Function to call with progress updates.
+
+    Returns:
+        List of paths to the created chunk files.
+    """
+    video_path = Path(video_path)
+    if output_dir is None:
+        output_dir = video_path.parent
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    # Get video duration using ffprobe
+    try:
+        result = subprocess.run(
+            [
+                "ffprobe", "-v", "error", "-show_entries", "format=duration",
+                "-of", "default=noprint_wrappers=1:nokey=1", str(video_path)
+            ],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        total_duration = float(result.stdout.strip())
+    except Exception as e:
+        if progress_callback:
+            progress_callback(f"Error getting video duration: {e}")
+        return []
+
+    chunk_duration_seconds = chunk_duration_minutes * 60
+    num_chunks = int(total_duration // chunk_duration_seconds) + (1 if total_duration % chunk_duration_seconds > 0 else 0)
+
+    if progress_callback:
+        progress_callback(f"Splitting into {num_chunks} chunks of {chunk_duration_minutes} min each...")
+
+    base_name = video_path.stem
+    chunks = []
+
+    for i in range(num_chunks):
+        start_time = i * chunk_duration_seconds
+        chunk_filename = f"{base_name}_part{i+1:03d}.mp4"
+        chunk_path = output_dir / chunk_filename
+
+        if progress_callback:
+            progress_callback(f"Creating chunk {i+1}/{num_chunks}: {chunk_filename}")
+
+        try:
+            # Use stream copy (-c copy) for fast splitting without re-encoding
+            # Put -ss before -i for fast seeking
+            cmd = [
+                "ffmpeg", "-y",
+                "-ss", str(start_time),
+                "-i", str(video_path),
+                "-t", str(chunk_duration_seconds),
+                "-c", "copy",
+                "-avoid_negative_ts", "make_zero",
+                "-loglevel", "error",
+                str(chunk_path)
+            ]
+            subprocess.run(cmd, check=True, capture_output=True, timeout=60)
+            chunks.append(chunk_path)
+        except subprocess.CalledProcessError as e:
+            if progress_callback:
+                progress_callback(f"Error creating chunk {i+1}: {e}")
+        except subprocess.TimeoutExpired:
+            if progress_callback:
+                progress_callback(f"Timeout creating chunk {i+1}")
+
+    if progress_callback:
+        progress_callback(f"Split complete! Created {len(chunks)} chunks.")
+
+    return chunks
+
+
 def keyboard_listener():
     """Inject JavaScript to capture keyboard events for navigation and labeling."""
     js_code = """
@@ -362,7 +450,7 @@ def keyboard_listener():
                 // Trigger Streamlit rerun
                 const buttons = streamlitDoc.querySelectorAll('button');
                 for (let btn of buttons) {
-                    if (btn.innerText.includes('🔄')) {
+                    if (btn.innerText.includes('REFRESH')) {
                         btn.click();
                         break;
                     }
@@ -375,73 +463,305 @@ def keyboard_listener():
     components.html(js_code, height=0)
 
 
-def run_analysis_tab():
+def load_detections(detections_dir: Path, video_name: str) -> Optional[dict]:
+    """Load saved detection results for a video.
+
+    Args:
+        detections_dir: Directory containing detection JSON files.
+        video_name: Name of the video file.
+
+    Returns:
+        Detection dict if found, None otherwise.
+    """
+    detection_file = detections_dir / f"{Path(video_name).stem}_detections.json"
+    if detection_file.exists():
+        try:
+            with open(detection_file) as f:
+                return json.load(f)
+        except json.JSONDecodeError:
+            # Delete corrupted file so user can re-run detection
+            print(f"Warning: Corrupted detection file deleted: {detection_file}")
+            detection_file.unlink()
+        except Exception as e:
+            print(f"Error loading detections: {e}")
+    return None
+
+
+def save_detections(detections_dir: Path, video_name: str, detections: dict) -> None:
+    """Save detection results for a video.
+
+    Uses atomic file writes to prevent corruption if the process crashes mid-write.
+
+    Args:
+        detections_dir: Directory to save detection JSON files.
+        video_name: Name of the video file.
+        detections: Detection results dict.
+    """
+    import tempfile
+    import os
+
+    detections_dir.mkdir(parents=True, exist_ok=True)
+    detection_file = detections_dir / f"{Path(video_name).stem}_detections.json"
+
+    # Write to temp file first, then atomic rename
+    fd, tmp_path = tempfile.mkstemp(suffix='.json', dir=detections_dir)
+    try:
+        with os.fdopen(fd, 'w') as tmp:
+            json.dump(detections, tmp, indent=2)
+        # Atomic rename
+        os.replace(tmp_path, detection_file)
+    except:
+        # Clean up temp file on error
+        if os.path.exists(tmp_path):
+            os.unlink(tmp_path)
+        raise
+
+
+def get_detection_status(detections_dir: Path, video_name: str) -> Optional[dict]:
+    """Get quick status of detections for a video without loading full data.
+
+    Args:
+        detections_dir: Directory containing detection JSON files.
+        video_name: Name of the video file.
+
+    Returns:
+        Dict with count and status summary, or None if no detections.
+    """
+    detections = load_detections(detections_dir, video_name)
+    if detections and "deliveries" in detections:
+        deliveries = detections["deliveries"]
+        return {
+            "total": len(deliveries),
+            "pending": sum(1 for d in deliveries if d.get("status") == "pending"),
+            "approved": sum(1 for d in deliveries if d.get("status") == "approved"),
+            "rejected": sum(1 for d in deliveries if d.get("status") == "rejected"),
+        }
+    return None
+
+
+def run_analysis_tab(domain: str = "cricket"):
     """Run the analysis tab for reviewing model detections."""
-    st.header("🔍 Video Analysis")
+    st.markdown(f"## Analysis {domain_badge(domain)}", unsafe_allow_html=True)
 
-    # Settings
-    col1, col2 = st.columns([2, 1])
+    # Directories
+    videos_dir = Path("data/raw")
+    model_path = Path("models/delivery_detector_best.pt")
+    labels_dir = Path("data/labels")
+    detections_dir = Path("data/detections")
 
-    with col1:
-        videos_dir = Path("data/raw")
-        model_path = Path("models/delivery_detector_best.pt")
-        labels_dir = Path("data/labels")
+    # Settings in a card-like container
+    with st.container():
+        col1, col2 = st.columns([2, 1])
 
-        # Video selection
-        video_files = list(videos_dir.glob("*.mp4")) + list(videos_dir.glob("*.mov")) if videos_dir.exists() else []
-        video_options = ["Select a video..."] + [f.name for f in video_files]
-        selected_video = st.selectbox("Select Video", video_options)
+        with col1:
+            # Video selection with detection status indicators
+            video_files = list(videos_dir.glob("*.mp4")) + list(videos_dir.glob("*.mov")) if videos_dir.exists() else []
 
-        if selected_video == "Select a video...":
-            st.info("Select a video to analyze")
-            return
+            # Build video options with detection status
+            video_options = ["Select a video..."]
+            for vf in video_files:
+                status = get_detection_status(detections_dir, vf.name)
+                if status:
+                    video_options.append(f"{vf.name} [{status['total']} detections]")
+                else:
+                    video_options.append(vf.name)
 
-        video_path = videos_dir / selected_video
+            selected_option = st.selectbox("Select Video", video_options, key="analysis_video")
 
-    with col2:
-        threshold = st.slider("Confidence Threshold", 0.1, 0.9, 0.5, 0.05)
+            if selected_option == "Select a video...":
+                st.info("Select a video to analyze")
+                return
 
-        # Check if model exists
-        if not model_path.exists():
-            st.error("Model not found. Train a model first.")
-            return
+            # Extract actual video name (remove detection count suffix if present)
+            if " [" in selected_option:
+                selected_video = selected_option.rsplit(" [", 1)[0]
+            else:
+                selected_video = selected_option
+
+            video_path = videos_dir / selected_video
+
+        with col2:
+            threshold = st.slider("Confidence Threshold", 0.1, 0.9, 0.5, 0.05)
+
+            # Check if model exists
+            if not model_path.exists():
+                st.warning("No model found. Train a model first to run new detections.")
+
+    # Advanced settings in expander
+    with st.expander("Speed Settings", expanded=False):
+        speed_cols = st.columns(3)
+        with speed_cols[0]:
+            target_fps = st.select_slider(
+                "Target FPS",
+                options=[2.0, 5.0, 10.0, 15.0],
+                value=5.0,
+                help="Lower = faster but may miss short events"
+            )
+        with speed_cols[1]:
+            stride = st.select_slider(
+                "Stride",
+                options=[2, 4, 8, 16],
+                value=8,
+                help="Higher = faster but less precise"
+            )
+        with speed_cols[2]:
+            batch_size = st.select_slider(
+                "Batch Size",
+                options=[4, 8, 16, 32],
+                value=16,
+                help="Higher = faster if GPU has memory"
+            )
 
     # Detection state
     detection_key = f"detections_{selected_video}_{threshold}"
 
-    # Run detection button
-    if st.button("🚀 Run Detection", type="primary"):
-        with st.spinner("Running detection..."):
-            try:
-                from src.inference.predictor import DeliveryPredictor
+    # Try to load existing detections from disk if not in session state
+    if detection_key not in st.session_state:
+        existing_detections = load_detections(detections_dir, selected_video)
+        if existing_detections:
+            st.session_state[detection_key] = existing_detections
 
-                predictor = DeliveryPredictor.from_checkpoint(str(model_path))
-                result = predictor.predict_video(
-                    str(video_path),
-                    threshold=threshold,
-                    buffer_seconds=2.0,
+    # Show existing detections status and options
+    existing_status = get_detection_status(detections_dir, selected_video)
+
+    col_btn1, col_btn2, col_info = st.columns([1, 1, 2])
+
+    with col_btn1:
+        run_new = st.button("Run Detection", type="primary", use_container_width=True)
+
+    with col_btn2:
+        if existing_status:
+            load_existing = st.button("Load Saved", type="secondary", use_container_width=True)
+            if load_existing:
+                saved_detections = load_detections(detections_dir, selected_video)
+                if saved_detections:
+                    st.session_state[detection_key] = saved_detections
+                    st.success(f"Loaded {existing_status['total']} saved detections")
+                    st.rerun()
+
+    with col_info:
+        if existing_status:
+            st.caption(
+                f"Saved: {existing_status['total']} detections "
+                f"({existing_status['approved']} approved, "
+                f"{existing_status['pending']} pending, "
+                f"{existing_status['rejected']} rejected)"
+            )
+
+    # Run detection button with styled appearance
+    if run_new:
+        if not model_path.exists():
+            st.error("No model found. Train a model first in the TRAINING tab.")
+            return
+
+        try:
+            import time
+            from src.inference.predictor import EventPredictor
+
+            # Create progress UI elements
+            progress_container = st.container()
+            with progress_container:
+                progress_bar = st.progress(0)
+                progress_info = st.empty()
+                progress_info.markdown("**Initializing model...**")
+
+            # Live results container
+            live_header = st.empty()
+            live_container = st.container()
+            
+            start_time = time.time()
+            live_events = []
+
+            # Progress callback for the predictor
+            def update_progress(current, total, status):
+                progress_pct = current / total
+                progress_bar.progress(progress_pct)
+
+                elapsed = time.time() - start_time
+                if current > 0:
+                    estimated_total = elapsed / progress_pct
+                    remaining = estimated_total - elapsed
+                    remaining_str = f"{int(remaining)}s remaining" if remaining > 0 else "Almost done..."
+                else:
+                    remaining_str = "Calculating..."
+
+                progress_info.markdown(
+                    f"**{int(progress_pct * 100)}%** complete | {remaining_str}  \n"
+                    f"<span style='color: #A1A1AA; font-size: 0.85rem;'>{status}</span>",
+                    unsafe_allow_html=True
                 )
+            
+            # Event callback for live updates
+            def on_event(event):
+                live_events.append(event)
+                cnt = len(live_events)
+                live_header.markdown(f"### Live Detections ({cnt})")
+                
+                with live_container:
+                    # Create a card for this event
+                    start_min = int(event.start_time // 60)
+                    start_sec = int(event.start_time % 60)
+                    conf_pct = int(event.confidence * 100)
+                    
+                    st.info(f"**Event #{cnt}**: {start_min}:{start_sec:02d} (Confidence: {conf_pct}%)")
 
-                # Store in session state
-                st.session_state[detection_key] = {
-                    "deliveries": [
-                        {
-                            "id": d.id,
-                            "start_time": d.start_time,
-                            "end_time": d.end_time,
-                            "confidence": d.confidence,
-                            "status": "pending",  # pending, approved, rejected
-                        }
-                        for d in result.deliveries
-                    ],
-                    "video_path": str(video_path),
-                    "fps": result.fps,
-                }
-                st.success(f"Found {len(result.deliveries)} deliveries!")
-                st.rerun()
-            except Exception as e:
-                st.error(f"Detection failed: {e}")
-                return
+            # Load model with speed settings
+            progress_info.markdown("**Loading model...**")
+            predictor = EventPredictor.from_checkpoint(
+                str(model_path),
+                target_fps=target_fps,
+                stride=stride,
+                batch_size=batch_size,
+            )
+
+            # Run detection with progress
+            result = predictor.predict_video(
+                str(video_path),
+                threshold=threshold,
+                buffer_seconds=2.0,
+                progress_callback=update_progress,
+                event_callback=on_event,
+            )
+
+            # Complete
+            elapsed = time.time() - start_time
+            progress_bar.progress(1.0)
+            progress_info.markdown(
+                f"**100%** complete | Finished in {elapsed:.1f}s  \n"
+                f"<span style='color: #10B981;'>Detection complete!</span>",
+                unsafe_allow_html=True
+            )
+
+            # Store in session state (convert numpy types to Python native for JSON serialization)
+            detection_data = {
+                "deliveries": [
+                    {
+                        "id": int(d.id),
+                        "start_time": float(d.start_time),
+                        "end_time": float(d.end_time),
+                        "confidence": float(d.confidence),
+                        "status": "pending",  # pending, approved, rejected
+                    }
+                    for d in result.events
+                ],
+                "video_path": str(video_path),
+                "fps": float(result.fps),
+                "threshold": float(threshold),
+                "detected_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+            }
+            st.session_state[detection_key] = detection_data
+
+            # Save to disk for persistence
+            save_detections(detections_dir, selected_video, detection_data)
+
+            st.success(f"Found {len(result.events)} events! Results saved.")
+            st.rerun()
+        except Exception as e:
+            import traceback
+            st.error(f"Detection failed: {e}")
+            with st.expander("Error details"):
+                st.code(traceback.format_exc())
+            return
 
     # Show detections if available
     if detection_key not in st.session_state:
@@ -458,16 +778,20 @@ def run_analysis_tab():
 
     st.divider()
 
-    # Summary stats
+    # Summary stats with custom metric cards
     pending = sum(1 for d in deliveries if d["status"] == "pending")
     approved = sum(1 for d in deliveries if d["status"] == "approved")
     rejected = sum(1 for d in deliveries if d["status"] == "rejected")
 
     stat_cols = st.columns(4)
-    stat_cols[0].metric("Total", len(deliveries))
-    stat_cols[1].metric("Pending", pending)
-    stat_cols[2].metric("Approved", approved, delta=None)
-    stat_cols[3].metric("Rejected", rejected, delta=None)
+    with stat_cols[0]:
+        st.metric("Total", len(deliveries))
+    with stat_cols[1]:
+        st.metric("Pending", pending)
+    with stat_cols[2]:
+        st.metric("Approved", approved)
+    with stat_cols[3]:
+        st.metric("Rejected", rejected)
 
     st.divider()
 
@@ -475,13 +799,14 @@ def run_analysis_tab():
     list_col, viewer_col = st.columns([1, 2])
 
     with list_col:
-        st.subheader("Detections")
+        st.markdown("### Detections")
 
         # Filter options
         filter_status = st.radio(
             "Filter",
             ["All", "Pending", "Approved", "Rejected"],
             horizontal=True,
+            key="analysis_filter",
         )
 
         # Filter deliveries
@@ -497,43 +822,49 @@ def run_analysis_tab():
         if "selected_delivery_idx" not in st.session_state:
             st.session_state.selected_delivery_idx = 0
 
-        # Delivery list
+        # Delivery list as styled buttons
         for i, delivery in enumerate(filtered):
             # Find actual index in original list
             actual_idx = deliveries.index(delivery)
 
             status_icon = {
-                "pending": "⏳",
-                "approved": "✅",
-                "rejected": "❌",
-            }.get(delivery["status"], "⏳")
+                "pending": "PENDING",
+                "approved": "APPROVED",
+                "rejected": "REJECTED",
+            }.get(delivery["status"], "PENDING")
 
             start_min = int(delivery["start_time"] // 60)
             start_sec = int(delivery["start_time"] % 60)
             conf_pct = int(delivery["confidence"] * 100)
 
-            btn_label = f"{status_icon} #{i+1} | {start_min}:{start_sec:02d} | {conf_pct}%"
+            btn_label = f"#{i+1} | {start_min}:{start_sec:02d} | {conf_pct}%"
+
+            is_selected = actual_idx == st.session_state.selected_delivery_idx
 
             if st.button(
                 btn_label,
                 key=f"sel_{actual_idx}",
                 use_container_width=True,
-                type="primary" if actual_idx == st.session_state.selected_delivery_idx else "secondary",
+                type="primary" if is_selected else "secondary",
             ):
                 st.session_state.selected_delivery_idx = actual_idx
                 st.rerun()
 
     with viewer_col:
-        st.subheader("Delivery Viewer")
+        st.markdown(f"### {domain.title()} Viewer")
 
         if st.session_state.selected_delivery_idx < len(deliveries):
             selected = deliveries[st.session_state.selected_delivery_idx]
 
-            # Display info
+            # Display info with metrics
             info_cols = st.columns(3)
-            info_cols[0].metric("Time", f"{selected['start_time']:.1f}s - {selected['end_time']:.1f}s")
-            info_cols[1].metric("Confidence", f"{selected['confidence']*100:.1f}%")
-            info_cols[2].metric("Status", selected["status"].title())
+            with info_cols[0]:
+                st.metric("Time", f"{selected['start_time']:.1f}s - {selected['end_time']:.1f}s")
+            with info_cols[1]:
+                st.metric("Confidence", f"{selected['confidence']*100:.1f}%")
+            with info_cols[2]:
+                # Status badge
+                st.markdown(f"**Status:** {status_badge(selected['status'])}", unsafe_allow_html=True)
 
             # Video clip player
             start_time = max(0, selected["start_time"] - 2)
@@ -563,14 +894,17 @@ def run_analysis_tab():
 
             st.divider()
 
-            # Action buttons
+            # Action buttons with custom styling
             action_cols = st.columns(3)
 
             with action_cols[0]:
-                if st.button("✅ Approve", type="primary", use_container_width=True,
-                           disabled=selected["status"] == "approved"):
+                if st.button("Approve", type="primary", use_container_width=True,
+                           disabled=selected["status"] == "approved", key="approve_btn"):
                     # Mark as approved and add to training labels
                     selected["status"] = "approved"
+
+                    # Save detection status to disk
+                    save_detections(detections_dir, selected_video, detections)
 
                     # Add to labels file
                     labels_path = labels_dir / f"{video_path.stem}.json"
@@ -600,10 +934,13 @@ def run_analysis_tab():
                     st.rerun()
 
             with action_cols[1]:
-                if st.button("❌ Reject", type="secondary", use_container_width=True,
-                           disabled=selected["status"] == "rejected"):
+                if st.button("Reject", type="secondary", use_container_width=True,
+                           disabled=selected["status"] == "rejected", key="reject_btn"):
                     # Mark as rejected and add as false positive
                     selected["status"] = "rejected"
+
+                    # Save detection status to disk
+                    save_detections(detections_dir, selected_video, detections)
 
                     # Add to labels file as false positive
                     labels_path = labels_dir / f"{video_path.stem}.json"
@@ -638,7 +975,7 @@ def run_analysis_tab():
                     st.rerun()
 
             with action_cols[2]:
-                if st.button("⏭️ Next", use_container_width=True):
+                if st.button("Next", use_container_width=True, key="next_detection"):
                     if st.session_state.selected_delivery_idx < len(deliveries) - 1:
                         st.session_state.selected_delivery_idx += 1
                         st.rerun()
@@ -650,31 +987,480 @@ def run_analysis_tab():
     st.divider()
     save_cols = st.columns([3, 1])
     with save_cols[1]:
-        if st.button("💾 Save Progress", use_container_width=True):
-            st.success("Progress saved in session!")
+        if st.button("Save Progress", use_container_width=True, key="save_progress"):
+            # Save current detection state to disk
+            save_detections(detections_dir, selected_video, detections)
+            st.success("Progress saved to disk!")
+
+
+def get_labeled_videos(labels_dir: Path, videos_dir: Path) -> list[dict]:
+    """Get all labeled videos with stats.
+
+    Args:
+        labels_dir: Directory containing label JSON files.
+        videos_dir: Directory containing video files.
+
+    Returns:
+        List of dicts with video info and stats.
+    """
+    videos = []
+    for json_file in labels_dir.glob("*.json"):
+        try:
+            labels = VideoLabels.load(json_file)
+            # Check if video exists
+            video_path = Path(labels.video_path)
+            if not video_path.exists():
+                # Try in videos_dir
+                video_path = videos_dir / video_path.name
+            video_exists = video_path.exists()
+
+            # Calculate duration
+            duration_seconds = labels.total_frames / labels.fps if labels.fps > 0 else 0
+            duration_min = int(duration_seconds // 60)
+            duration_sec = int(duration_seconds % 60)
+
+            videos.append({
+                "label_file": json_file,
+                "video_name": video_path.name,
+                "video_path": str(video_path),
+                "video_exists": video_exists,
+                "num_events": len(labels.deliveries),
+                "num_false_positives": len(labels.false_positives) if labels.false_positives else 0,
+                "duration": f"{duration_min}:{duration_sec:02d}",
+                "duration_seconds": duration_seconds,
+                "fps": labels.fps,
+                "total_frames": labels.total_frames,
+            })
+        except Exception as e:
+            print(f"Error loading {json_file}: {e}")
+            continue
+
+    return sorted(videos, key=lambda v: v["video_name"])
+
+
+def get_previous_models(models_dir: Path) -> list[dict]:
+    """Get list of previous training runs from models directory.
+
+    Args:
+        models_dir: Directory containing saved models.
+
+    Returns:
+        List of dicts with model info.
+    """
+    models = []
+    if not models_dir.exists():
+        return models
+
+    for model_file in models_dir.glob("*.pt"):
+        try:
+            # Load checkpoint to get metadata
+            import torch
+            checkpoint = torch.load(model_file, map_location="cpu", weights_only=False)
+            metrics = checkpoint.get("metrics", {})
+            domain = checkpoint.get("domain", "unknown")
+            epoch = checkpoint.get("epoch", 0)
+
+            models.append({
+                "path": model_file,
+                "name": model_file.stem,
+                "domain": domain,
+                "epoch": epoch,
+                "val_f1": metrics.get("val_f1", 0),
+                "val_accuracy": metrics.get("val_accuracy", 0),
+                "modified": model_file.stat().st_mtime,
+            })
+        except Exception as e:
+            # If we can't load it, just add basic info
+            models.append({
+                "path": model_file,
+                "name": model_file.stem,
+                "domain": "unknown",
+                "epoch": 0,
+                "val_f1": 0,
+                "val_accuracy": 0,
+                "modified": model_file.stat().st_mtime,
+            })
+
+    return sorted(models, key=lambda m: m["modified"], reverse=True)
+
+
+def run_training_tab(domain: str = "cricket"):
+    """Run the training tab for model training and management."""
+    st.markdown(f"## Training {domain_badge(domain)}", unsafe_allow_html=True)
+
+    # Directories
+    labels_dir = Path("data/labels")
+    videos_dir = Path("data/raw")
+    models_dir = Path("models")
+
+    # Initialize session state
+    if "training_selected_videos" not in st.session_state:
+        st.session_state.training_selected_videos = set()
+    if "training_in_progress" not in st.session_state:
+        st.session_state.training_in_progress = False
+    if "training_progress" not in st.session_state:
+        st.session_state.training_progress = {}
+    if "training_stop_requested" not in st.session_state:
+        st.session_state.training_stop_requested = False
+
+    # ========== VIDEO SELECTION SECTION ==========
+    st.markdown("### Training Videos")
+
+    # Get labeled videos
+    labeled_videos = get_labeled_videos(labels_dir, videos_dir)
+
+    if not labeled_videos:
+        st.warning("No labeled videos found. Label some videos first in the LABELING tab.")
+        return
+
+    # Video selection with stats
+    col_select, col_stats = st.columns([3, 1])
+
+    with col_select:
+        # Select/deselect all buttons
+        btn_cols = st.columns([1, 1, 4])
+        with btn_cols[0]:
+            if st.button("Select All", use_container_width=True, key="select_all_videos"):
+                for v in labeled_videos:
+                    if v["video_exists"]:
+                        st.session_state.training_selected_videos.add(str(v["label_file"]))
+                st.rerun()
+        with btn_cols[1]:
+            if st.button("Clear All", use_container_width=True, key="clear_all_videos"):
+                st.session_state.training_selected_videos.clear()
+                st.rerun()
+
+        # Video list with checkboxes
+        for video in labeled_videos:
+            label_key = str(video["label_file"])
+            col1, col2, col3, col4 = st.columns([0.5, 3, 1.5, 0.5])
+
+            with col1:
+                # Checkbox
+                is_selected = label_key in st.session_state.training_selected_videos
+                disabled = not video["video_exists"]
+                new_selected = st.checkbox(
+                    "select",
+                    value=is_selected,
+                    key=f"video_select_{label_key}",
+                    label_visibility="collapsed",
+                    disabled=disabled,
+                )
+                if new_selected and not is_selected:
+                    st.session_state.training_selected_videos.add(label_key)
+                elif not new_selected and is_selected:
+                    st.session_state.training_selected_videos.discard(label_key)
+
+            with col2:
+                # Video name
+                name = video["video_name"]
+                if len(name) > 40:
+                    name = name[:37] + "..."
+                st.markdown(f"**{name}**")
+
+            with col3:
+                # Stats
+                st.caption(f"{video['duration']} min | {video['num_events']} events")
+
+            with col4:
+                # Status icon
+                if video["video_exists"]:
+                    st.markdown("✓", help="Video file exists")
+                else:
+                    st.markdown("⚠", help="Video file not found")
+
+    with col_stats:
+        # Selection summary
+        selected_count = len(st.session_state.training_selected_videos)
+        total_events = sum(
+            v["num_events"]
+            for v in labeled_videos
+            if str(v["label_file"]) in st.session_state.training_selected_videos
+        )
+        total_fp = sum(
+            v["num_false_positives"]
+            for v in labeled_videos
+            if str(v["label_file"]) in st.session_state.training_selected_videos
+        )
+        total_duration = sum(
+            v["duration_seconds"]
+            for v in labeled_videos
+            if str(v["label_file"]) in st.session_state.training_selected_videos
+        )
+
+        st.metric("Videos Selected", selected_count)
+        st.metric("Total Events", total_events)
+        if total_fp > 0:
+            st.metric("False Positives", total_fp)
+        st.metric("Total Duration", f"{int(total_duration // 60)}m")
+
+    st.divider()
+
+    # ========== TRAINING CONFIGURATION SECTION ==========
+    with st.expander("Training Settings", expanded=True):
+        config_col1, config_col2, config_col3 = st.columns(3)
+
+        with config_col1:
+            backbone = st.selectbox(
+                "Backbone",
+                ["resnet18", "resnet34", "resnet50"],
+                index=0,
+                help="CNN backbone for feature extraction"
+            )
+            num_epochs = st.slider(
+                "Epochs",
+                min_value=10,
+                max_value=100,
+                value=50,
+                step=5,
+                help="Number of training epochs"
+            )
+
+        with config_col2:
+            batch_size = st.select_slider(
+                "Batch Size",
+                options=[4, 8, 16, 32],
+                value=8,
+                help="Samples per batch"
+            )
+            learning_rate = st.select_slider(
+                "Learning Rate",
+                options=[1e-5, 5e-5, 1e-4, 5e-4, 1e-3],
+                value=1e-4,
+                format_func=lambda x: f"{x:.0e}",
+                help="Initial learning rate"
+            )
+
+        with config_col3:
+            early_stopping = st.slider(
+                "Early Stopping Patience",
+                min_value=5,
+                max_value=20,
+                value=10,
+                help="Stop if no improvement for N epochs"
+            )
+            window_size = st.select_slider(
+                "Window Size",
+                options=[4, 8, 12, 16],
+                value=8,
+                help="Number of frames per window"
+            )
+
+        # Additional settings row
+        extra_col1, extra_col2 = st.columns(2)
+        with extra_col1:
+            target_fps = st.select_slider(
+                "Target FPS",
+                options=[5.0, 10.0, 15.0],
+                value=10.0,
+                help="Frame extraction rate"
+            )
+        with extra_col2:
+            experiment_name = st.text_input(
+                "Experiment Name",
+                value=f"{domain}_detector",
+                help="Name for saving the model"
+            )
+
+    st.divider()
+
+    # ========== TRAINING CONTROLS SECTION ==========
+    st.markdown("### Training Controls")
+
+    control_col1, control_col2 = st.columns([1, 3])
+
+    with control_col1:
+        # Start/Stop buttons
+        can_start = selected_count > 0 and not st.session_state.training_in_progress
+
+        if st.button(
+            "Start Training",
+            type="primary",
+            use_container_width=True,
+            disabled=not can_start,
+            key="start_training_btn"
+        ):
+            # Start training
+            st.session_state.training_in_progress = True
+            st.session_state.training_stop_requested = False
+            st.session_state.training_progress = {
+                "epoch": 0,
+                "total_epochs": num_epochs,
+                "train_loss": 0,
+                "val_loss": 0,
+                "train_acc": 0,
+                "val_acc": 0,
+                "val_f1": 0,
+                "status": "initializing",
+            }
+            st.rerun()
+
+        if st.session_state.training_in_progress:
+            if st.button(
+                "Stop Training",
+                type="secondary",
+                use_container_width=True,
+                key="stop_training_btn"
+            ):
+                st.session_state.training_stop_requested = True
+                st.session_state.training_progress["status"] = "stopping"
+                st.rerun()
+
+    with control_col2:
+        if not can_start and not st.session_state.training_in_progress:
+            st.info("Select at least one video to start training")
+
+    # ========== TRAINING PROGRESS SECTION ==========
+    if st.session_state.training_in_progress:
+        st.markdown("### Training Progress")
+
+        progress = st.session_state.training_progress
+
+        # Progress bar
+        progress_pct = progress["epoch"] / progress["total_epochs"] if progress["total_epochs"] > 0 else 0
+        st.progress(progress_pct)
+        st.markdown(f"**Epoch {progress['epoch']}/{progress['total_epochs']}** - {progress.get('status', 'training')}")
+
+        # Metrics display
+        metric_cols = st.columns(4)
+        with metric_cols[0]:
+            st.metric("Train Loss", f"{progress.get('train_loss', 0):.4f}")
+        with metric_cols[1]:
+            st.metric("Val Loss", f"{progress.get('val_loss', 0):.4f}")
+        with metric_cols[2]:
+            st.metric("Val Accuracy", f"{progress.get('val_acc', 0)*100:.1f}%")
+        with metric_cols[3]:
+            st.metric("Val F1", f"{progress.get('val_f1', 0):.3f}")
+
+        # Run training in background
+        if progress.get("status") == "initializing":
+            with st.spinner("Starting training..."):
+                try:
+                    # Import training modules
+                    from src.training.trainer import TrainingConfig, train_model_with_progress
+                    from src.data.dataset import create_train_val_split_from_files
+
+                    # Get selected label files
+                    selected_files = [Path(f) for f in st.session_state.training_selected_videos]
+
+                    # Create training config
+                    config = TrainingConfig(
+                        domain=domain,
+                        labels_dir=str(labels_dir),
+                        videos_dir=str(videos_dir),
+                        backbone=backbone,
+                        num_epochs=num_epochs,
+                        batch_size=batch_size,
+                        learning_rate=learning_rate,
+                        early_stopping_patience=early_stopping,
+                        window_size=window_size,
+                        target_fps=target_fps,
+                        experiment_name=experiment_name,
+                    )
+
+                    # Progress callback
+                    def update_progress(metrics: dict):
+                        st.session_state.training_progress.update(metrics)
+                        st.session_state.training_progress["status"] = "training"
+                        # Check for stop request
+                        return not st.session_state.training_stop_requested
+
+                    # Run training
+                    st.session_state.training_progress["status"] = "training"
+                    result = train_model_with_progress(
+                        config,
+                        label_files=selected_files,
+                        progress_callback=update_progress,
+                    )
+
+                    if result:
+                        st.session_state.training_progress["status"] = "completed"
+                        st.success(f"Training completed! Model saved as {experiment_name}_best.pt")
+                    else:
+                        st.session_state.training_progress["status"] = "stopped"
+                        st.warning("Training stopped by user")
+
+                except ImportError:
+                    st.session_state.training_progress["status"] = "error"
+                    st.error("Training modules not fully implemented yet. See training progress callback implementation.")
+                except Exception as e:
+                    st.session_state.training_progress["status"] = "error"
+                    st.error(f"Training failed: {e}")
+                finally:
+                    st.session_state.training_in_progress = False
+
+    st.divider()
+
+    # ========== TRAINING HISTORY SECTION ==========
+    st.markdown("### Previous Models")
+
+    previous_models = get_previous_models(models_dir)
+
+    if not previous_models:
+        st.info("No trained models found. Train a model to see it here.")
+    else:
+        for model in previous_models[:5]:  # Show last 5 models
+            with st.expander(f"{model['name']}", expanded=False):
+                info_cols = st.columns(4)
+                with info_cols[0]:
+                    st.caption("Domain")
+                    st.markdown(f"**{model['domain']}**")
+                with info_cols[1]:
+                    st.caption("Epoch")
+                    st.markdown(f"**{model['epoch']}**")
+                with info_cols[2]:
+                    st.caption("Val F1")
+                    st.markdown(f"**{model['val_f1']:.3f}**")
+                with info_cols[3]:
+                    st.caption("Val Accuracy")
+                    st.markdown(f"**{model['val_accuracy']*100:.1f}%**")
+
+                # Load model button
+                if st.button("Use this model", key=f"load_model_{model['name']}", use_container_width=False):
+                    # Copy to the default model path
+                    import shutil
+                    default_path = models_dir / "delivery_detector_best.pt"
+                    shutil.copy(model["path"], default_path)
+                    st.success(f"Model loaded! Now available for detection in Analysis tab.")
 
 
 def run_labeler():
     """Run the Streamlit labeling application."""
+    # Parse command line arguments
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--domain", type=str, default="cricket")
+    # Streamlit passes args after --
+    args = parser.parse_args(sys.argv[1:]) if "--" not in sys.argv else parser.parse_args(sys.argv[sys.argv.index("--") + 1:])
+    domain = args.domain
+
     st.set_page_config(
-        page_title="Cricket Delivery Labeler",
-        page_icon="🏏",
+        page_title=f"Prismata | {domain.title()}",
+        page_icon="P",
         layout="wide",
+        initial_sidebar_state="expanded",
     )
 
-    st.title("🏏 Cricket Delivery Detector")
+    # Inject custom theme CSS
+    inject_theme()
 
-    # Main tabs
-    tab1, tab2 = st.tabs(["📝 Labeling", "🔍 Analysis"])
+    # Header with gradient title and domain badge
+    styled_header("Prismata", domain)
+    st.caption("Multi-domain video event detection")
+
+    # Main tabs with cleaner styling
+    tab1, tab2, tab3 = st.tabs(["LABELING", "ANALYSIS", "TRAINING"])
 
     with tab2:
-        run_analysis_tab()
+        run_analysis_tab(domain)
+
+    with tab3:
+        run_training_tab(domain)
 
     with tab1:
-        run_labeling_tab()
+        run_labeling_tab(domain)
 
 
-def run_labeling_tab():
+def run_labeling_tab(domain: str = "cricket"):
     """Run the labeling tab content."""
     # Check for keyboard action from URL params
     query_params = st.query_params
@@ -686,24 +1472,30 @@ def run_labeling_tab():
 
     # Sidebar for file selection and shortcuts help
     with st.sidebar:
-        # Tab selection for video source
+        st.markdown("### Video Source")
+
+        # Tab selection for video source with styled radio
         source_tab = st.radio(
-            "Video Source",
+            "Source",
             ["Local File", "YouTube"],
             horizontal=True,
+            label_visibility="collapsed",
         )
 
         video_path = None
         labels_dir = st.text_input("Labels Directory", value="data/labels")
         videos_dir = st.text_input("Videos Directory", value="data/raw")
 
+        st.divider()
+
         if source_tab == "YouTube":
-            st.subheader("📺 YouTube Download")
+            st.markdown("### YouTube Download")
 
             youtube_url = st.text_input(
                 "YouTube URL",
                 placeholder="https://youtube.com/watch?v=...",
-                help="Paste a YouTube video URL"
+                help="Paste a YouTube video URL",
+                label_visibility="collapsed",
             )
 
             if youtube_url and is_youtube_url(youtube_url):
@@ -749,8 +1541,28 @@ def run_labeling_tab():
                             help="e.g., 5:00 or 00:05:00"
                         )
 
+                    # Split options
+                    st.caption("Split into chunks (optional)")
+                    split_enabled = st.checkbox(
+                        "Split video into smaller files",
+                        value=False,
+                        help="Split the downloaded video into smaller chunks for easier labeling"
+                    )
+                    if split_enabled:
+                        chunk_duration = st.select_slider(
+                            "Chunk duration (minutes)",
+                            options=[5, 10, 15, 20, 30],
+                            value=10,
+                            help="Duration of each chunk"
+                        )
+                        delete_original = st.checkbox(
+                            "Delete original after splitting",
+                            value=False,
+                            help="Remove the full video after creating chunks"
+                        )
+
                     # Download button
-                    if st.button("⬇️ Download Video", type="primary"):
+                    if st.button("Download Video", type="primary", use_container_width=True):
                         progress_placeholder = st.empty()
 
                         def update_progress(msg):
@@ -769,7 +1581,27 @@ def run_labeling_tab():
 
                         if downloaded_path:
                             st.success(f"Downloaded: {downloaded_path.name}")
-                            st.session_state.downloaded_video = str(downloaded_path)
+
+                            # Split if enabled
+                            if split_enabled:
+                                with st.spinner("Splitting video..."):
+                                    chunks = split_video(
+                                        video_path=downloaded_path,
+                                        chunk_duration_minutes=chunk_duration,
+                                        progress_callback=update_progress,
+                                    )
+                                if chunks:
+                                    st.success(f"Created {len(chunks)} chunks")
+                                    if delete_original:
+                                        downloaded_path.unlink()
+                                        st.info(f"Deleted original: {downloaded_path.name}")
+                                    # Set first chunk as the downloaded video
+                                    st.session_state.downloaded_video = str(chunks[0])
+                                else:
+                                    st.warning("Splitting failed, keeping original file")
+                                    st.session_state.downloaded_video = str(downloaded_path)
+                            else:
+                                st.session_state.downloaded_video = str(downloaded_path)
                             st.rerun()
                         else:
                             st.error("Download failed. Check the URL and try again.")
@@ -784,12 +1616,12 @@ def run_labeling_tab():
                 st.caption("Recently downloaded:")
                 video_path = st.session_state.downloaded_video
                 st.code(video_path, language=None)
-                if st.button("📂 Load this video"):
+                if st.button("Load this video", use_container_width=True):
                     pass  # video_path is already set
 
         else:  # Local File
-            st.subheader("📁 Local Video")
-            video_path = st.text_input("Video Path", placeholder="/path/to/video.mp4")
+            st.markdown("### Local Video")
+            video_path = st.text_input("Video Path", placeholder="/path/to/video.mp4", label_visibility="collapsed")
 
             # List available videos in videos_dir
             videos_path = Path(videos_dir)
@@ -801,6 +1633,7 @@ def run_labeling_tab():
                         "Select video",
                         [""] + [f.name for f in video_files],
                         format_func=lambda x: "Choose..." if x == "" else x,
+                        label_visibility="collapsed",
                     )
                     if selected:
                         video_path = str(videos_path / selected)
@@ -810,11 +1643,11 @@ def run_labeling_tab():
         if video_path and Path(video_path).exists():
             try:
                 metadata = get_video_metadata(video_path)
-                st.success(f"Loaded: {metadata.path.name}")
-                st.text(f"Resolution: {metadata.width}x{metadata.height}")
-                st.text(f"FPS: {metadata.fps:.2f}")
-                st.text(f"Duration: {metadata.duration_str}")
-                st.text(f"Frames: {metadata.total_frames}")
+                st.divider()
+                st.markdown("### Video Info")
+                st.markdown(f"**{metadata.path.name}**")
+                st.caption(f"{metadata.width}x{metadata.height} | {metadata.fps:.1f} fps")
+                st.caption(f"{metadata.duration_str} | {metadata.total_frames} frames")
             except Exception as e:
                 st.error(f"Error loading video: {e}")
                 video_path = None
@@ -822,27 +1655,25 @@ def run_labeling_tab():
             st.warning("Video file not found")
             video_path = None
 
-        # Keyboard shortcuts help
-        with st.expander("⌨️ Keyboard Shortcuts"):
-            st.markdown("""
-            **Navigation (in Frame View):**
-            - `←` / `A` : Previous frame
-            - `→` / `D` : Next frame
-            - `Shift + ←/→` : Skip 10 frames
-            - `Ctrl + ←/→` : Skip 100 frames
+        st.divider()
 
-            **Labeling:**
-            - `S` : Mark start
-            - `E` : Mark end
-            - `Esc` / `C` : Cancel marking
-
-            **Save:**
-            - `Ctrl + S` : Save labels
-            """)
+        # Keyboard shortcuts help in collapsible card
+        with st.expander("Keyboard Shortcuts", expanded=False):
+            st.caption("NAVIGATION")
+            st.text("Left/A      Previous frame")
+            st.text("Right/D     Next frame")
+            st.text("Shift+Arrow Skip 10 frames")
+            st.text("Ctrl+Arrow  Skip 100 frames")
+            st.caption("LABELING")
+            st.text("S           Mark start")
+            st.text("E           Mark end")
+            st.text("Esc/C       Cancel marking")
+            st.caption("SAVE")
+            st.text("Ctrl+S      Save labels")
 
     # Show instructions if no video loaded
     if not video_path or not metadata:
-        st.info("👈 Select a video source from the sidebar to begin labeling.")
+        st.info("Select a video source from the sidebar to begin labeling.")
 
         col1, col2 = st.columns(2)
         with col1:
@@ -881,7 +1712,7 @@ def run_labeling_tab():
     def auto_save():
         """Auto-save labels after modifications."""
         labels.save(labels_path)
-        st.session_state.status_message = f"💾 Auto-saved to {labels_path}"
+        st.session_state.status_message = f"Auto-saved to {labels_path}"
 
     # Process keyboard action
     if kb_action:
@@ -900,26 +1731,26 @@ def run_labeling_tab():
             st.session_state.current_frame = min(max_frame, current_frame + 100)
         elif kb_action == "mark_start":
             st.session_state.marking_start = current_frame
-            st.session_state.status_message = f"✅ Start marked at frame {current_frame}"
+            st.session_state.status_message = f"Start marked at frame {current_frame}"
         elif kb_action == "mark_end":
             if st.session_state.marking_start is not None:
                 if current_frame > st.session_state.marking_start:
                     labels.add_delivery(st.session_state.marking_start, current_frame)
                     auto_save()
-                    st.session_state.status_message = f"✅ Delivery added & saved: {st.session_state.marking_start} → {current_frame}"
+                    st.session_state.status_message = f"Delivery added & saved: {st.session_state.marking_start} -> {current_frame}"
                     st.session_state.marking_start = None
                 else:
-                    st.session_state.status_message = "❌ End frame must be after start frame"
+                    st.session_state.status_message = "End frame must be after start frame"
             else:
-                st.session_state.status_message = "❌ Mark start first (press S)"
+                st.session_state.status_message = "Mark start first (press S)"
         elif kb_action == "cancel":
             if st.session_state.marking_start is not None:
                 st.session_state.marking_start = None
-                st.session_state.status_message = "🚫 Marking cancelled"
+                st.session_state.status_message = "Marking cancelled"
         elif kb_action == "save":
             labels_path = Path(labels_dir) / f"{Path(video_path).stem}.json"
             labels.save(labels_path)
-            st.session_state.status_message = f"💾 Saved to {labels_path}"
+            st.session_state.status_message = f"Saved to {labels_path}"
         # Rerun to apply changes
         st.rerun()
 
@@ -932,19 +1763,20 @@ def run_labeling_tab():
     # Inject keyboard listener for navigation shortcuts
     keyboard_listener()
 
-    # Hidden refresh button for keyboard events
-    col_hidden = st.columns([1])[0]
-    with col_hidden:
-        st.button("🔄", key="refresh_btn", help="Refresh (used by keyboard shortcuts)")
+    # Hidden refresh button for keyboard events (styled to blend in)
+    st.button("REFRESH", key="refresh_btn", help="Refresh (used by keyboard shortcuts)", type="secondary")
 
     # Status message bar
     if st.session_state.get("status_message"):
-        if "✅" in st.session_state.status_message or "💾" in st.session_state.status_message:
-            st.success(st.session_state.status_message)
-        elif "❌" in st.session_state.status_message:
-            st.error(st.session_state.status_message)
+        msg = st.session_state.status_message
+        if "added" in msg.lower() or "saved" in msg.lower():
+            st.success(msg)
+        elif "must" in msg.lower() or "first" in msg.lower():
+            st.error(msg)
+        elif "cancelled" in msg.lower():
+            st.warning(msg)
         else:
-            st.info(st.session_state.status_message)
+            st.info(msg)
         st.session_state.status_message = None
 
     # Navigation callback functions
@@ -985,7 +1817,7 @@ def run_labeling_tab():
         # View mode tabs
         view_mode = st.radio(
             "View Mode",
-            ["Frame View (for labeling)", "Video Playback"],
+            ["Frame View", "Video Playback"],
             horizontal=True,
             help="Use Frame View for precise labeling, Video Playback to watch the video",
         )
@@ -995,7 +1827,7 @@ def run_labeling_tab():
             st.video(video_path)
             st.caption("Use the video controls above to play. Switch to Frame View to label specific frames.")
         else:
-            # Frame navigation slider
+            # Frame navigation slider with purple accent
             st.slider(
                 "Frame",
                 0,
@@ -1004,52 +1836,67 @@ def run_labeling_tab():
                 on_change=on_slider_change,
             )
 
-            # Display current frame
+            # Display current frame in container
             frame_data, actual_pos = get_frame(cap, current_frame)
             if frame_data is not None and frame_data.size > 0:
+                # Add glow effect if marking
+                if st.session_state.marking_start is not None:
+                    st.markdown(
+                        f'<div style="border: 2px solid {COLORS["emerald"]}; border-radius: 12px; '
+                        f'box-shadow: 0 0 20px rgba(16, 185, 129, 0.4); padding: 4px;">',
+                        unsafe_allow_html=True
+                    )
                 st.image(frame_data, use_container_width=True)
+                if st.session_state.marking_start is not None:
+                    st.markdown('</div>', unsafe_allow_html=True)
             else:
                 st.error(f"Cannot read frame {current_frame} (actual pos: {actual_pos})")
 
         # Time and marking status display
-        status_text = f"Frame: {current_frame} | Time: {format_time(current_frame, labels.fps)}"
+        status_parts = [
+            f"**Frame:** {current_frame}",
+            f"**Time:** {format_time(current_frame, labels.fps)}",
+        ]
         if st.session_state.marking_start is not None:
-            status_text += f" | 🟢 Marking from: {st.session_state.marking_start}"
-        st.markdown(f"**{status_text}**")
+            status_parts.append(f"**Marking from:** {st.session_state.marking_start}")
 
-        # Navigation buttons
+        st.markdown(" | ".join(status_parts))
+
+        # Navigation buttons in a clean row
         st.caption("Frame Navigation")
         nav_cols = st.columns(6)
         with nav_cols[0]:
-            st.button("⏮️ -100", help="Ctrl+←", on_click=nav_prev_100)
+            st.button("-100", help="Ctrl+Left", on_click=nav_prev_100, use_container_width=True)
         with nav_cols[1]:
-            st.button("⏪ -10", help="Shift+←", on_click=nav_prev_10)
+            st.button("-10", help="Shift+Left", on_click=nav_prev_10, use_container_width=True)
         with nav_cols[2]:
-            st.button("◀️ -1", help="← or A", on_click=nav_prev_1)
+            st.button("-1", help="Left or A", on_click=nav_prev_1, use_container_width=True)
         with nav_cols[3]:
-            st.button("▶️ +1", help="→ or D", on_click=nav_next_1)
+            st.button("+1", help="Right or D", on_click=nav_next_1, use_container_width=True)
         with nav_cols[4]:
-            st.button("⏩ +10", help="Shift+→", on_click=nav_next_10)
+            st.button("+10", help="Shift+Right", on_click=nav_next_10, use_container_width=True)
         with nav_cols[5]:
-            st.button("⏭️ +100", help="Ctrl+→", on_click=nav_next_100)
+            st.button("+100", help="Ctrl+Right", on_click=nav_next_100, use_container_width=True)
 
-        # Marking controls
-        st.subheader("Mark Delivery")
+        st.divider()
+
+        # Marking controls with prominent colored buttons
+        st.markdown(f"### Mark {domain.title()} Event")
         mark_cols = st.columns(4)
 
         with mark_cols[0]:
-            if st.button("🟢 Mark Start (S)", type="primary"):
+            if st.button("Mark Start", type="primary", use_container_width=True, help="Press S"):
                 st.session_state.marking_start = current_frame
-                st.session_state.status_message = f"✅ Start marked at frame {current_frame}"
+                st.session_state.status_message = f"Start marked at frame {current_frame}"
                 st.rerun()
 
         with mark_cols[1]:
             end_disabled = st.session_state.marking_start is None
-            if st.button("🔴 Mark End (E)", disabled=end_disabled):
+            if st.button("Mark End", disabled=end_disabled, use_container_width=True, help="Press E"):
                 if current_frame > st.session_state.marking_start:
                     labels.add_delivery(st.session_state.marking_start, current_frame)
                     auto_save()
-                    st.session_state.status_message = f"✅ Delivery added & saved!"
+                    st.session_state.status_message = f"Delivery added & saved!"
                     st.session_state.marking_start = None
                     st.rerun()
                 else:
@@ -1057,40 +1904,39 @@ def run_labeling_tab():
 
         with mark_cols[2]:
             cancel_disabled = st.session_state.marking_start is None
-            if st.button("❌ Cancel (Esc)", disabled=cancel_disabled):
+            if st.button("Cancel", disabled=cancel_disabled, use_container_width=True, help="Press Esc or C"):
                 st.session_state.marking_start = None
                 st.rerun()
 
         with mark_cols[3]:
-            if st.button("💾 Save (Ctrl+S)", type="secondary"):
+            if st.button("Save", type="secondary", use_container_width=True, help="Ctrl+S"):
                 labels_path = Path(labels_dir) / f"{Path(video_path).stem}.json"
                 labels.save(labels_path)
-                st.session_state.status_message = f"💾 Saved to {labels_path}"
+                st.session_state.status_message = f"Saved to {labels_path}"
                 st.rerun()
 
     with col2:
-        # Deliveries list
-        st.subheader(f"Deliveries ({len(labels.deliveries)})")
+        # Deliveries list with styled cards
+        st.markdown(f"### Events ({len(labels.deliveries)})")
 
         if not labels.deliveries:
-            st.info("No deliveries labeled yet.\nPress S to start marking.")
+            st.info("No events labeled yet.\nPress S to start marking.")
 
         for delivery in labels.deliveries:
             with st.expander(
                 f"#{delivery.id} | {format_time(delivery.start_frame, labels.fps)}"
             ):
-                st.text(f"Start: {delivery.start_frame}")
-                st.text(f"End: {delivery.end_frame}")
-                st.text(f"Duration: {delivery.duration_frames()} frames")
-                st.text(f"Duration: {delivery.duration_frames() / labels.fps:.2f}s")
+                st.caption(f"Start: {delivery.start_frame}")
+                st.caption(f"End: {delivery.end_frame}")
+                st.caption(f"Duration: {delivery.duration_frames()} frames ({delivery.duration_frames() / labels.fps:.2f}s)")
 
                 col_a, col_b = st.columns(2)
                 with col_a:
-                    if st.button("Go to", key=f"goto_{delivery.id}"):
+                    if st.button("Go to", key=f"goto_{delivery.id}", use_container_width=True):
                         st.session_state.current_frame = delivery.start_frame
                         st.rerun()
                 with col_b:
-                    if st.button("🗑️", key=f"del_{delivery.id}", help="Delete"):
+                    if st.button("Delete", key=f"del_{delivery.id}", use_container_width=True):
                         labels.remove_delivery(delivery.id)
                         auto_save()
                         st.rerun()
@@ -1098,11 +1944,12 @@ def run_labeling_tab():
         # Quick stats
         if labels.deliveries:
             st.divider()
-            st.caption("Stats")
+            st.markdown("### Stats")
             total_duration = sum(d.duration_frames() for d in labels.deliveries) / labels.fps
-            st.text(f"Total labeled: {total_duration:.1f}s")
             avg_duration = total_duration / len(labels.deliveries)
-            st.text(f"Avg duration: {avg_duration:.2f}s")
+
+            st.metric("Total Labeled", f"{total_duration:.1f}s")
+            st.metric("Avg Duration", f"{avg_duration:.2f}s")
 
     cap.release()
 

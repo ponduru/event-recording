@@ -8,6 +8,12 @@ from pathlib import Path
 
 @click.command()
 @click.option(
+    "--domain",
+    "-d",
+    default="cricket",
+    help="Domain name (cricket, soccer, warehouse)",
+)
+@click.option(
     "--video",
     "-v",
     type=click.Path(exists=True),
@@ -27,17 +33,17 @@ from pathlib import Path
     default=8501,
     help="Port to run Streamlit on",
 )
-def main(video: str, labels_dir: str, port: int):
+def main(domain: str, video: str, labels_dir: str, port: int):
     """Launch the video labeling tool.
 
-    This starts a Streamlit web application for labeling cricket deliveries
-    in video files.
+    This starts a Streamlit web application for labeling video events
+    across multiple domains.
 
     Example usage:
 
-        python -m scripts.label
+        prismata-label --domain cricket
 
-        python -m scripts.label --video match.mp4
+        prismata-label --domain soccer --video match.mp4
 
         python -m scripts.label --port 8502
     """
@@ -45,7 +51,7 @@ def main(video: str, labels_dir: str, port: int):
     labels_path = Path(labels_dir)
     labels_path.mkdir(parents=True, exist_ok=True)
 
-    click.echo("Starting Cricket Delivery Labeling Tool...")
+    click.echo(f"Starting Prismata Labeling Tool ({domain})...")
     click.echo(f"Labels will be saved to: {labels_path.absolute()}")
     click.echo()
 
@@ -60,6 +66,9 @@ def main(video: str, labels_dir: str, port: int):
         str(labeler_path),
         "--server.port",
         str(port),
+        "--",
+        "--domain",
+        domain,
     ]
 
     if video:

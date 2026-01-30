@@ -31,7 +31,16 @@ class Event:
     duration: float
 
     def to_dict(self) -> dict:
-        return asdict(self)
+        """Convert to dict with JSON-serializable types."""
+        return {
+            "id": int(self.id),
+            "start_time": float(self.start_time),
+            "end_time": float(self.end_time),
+            "start_frame": int(self.start_frame),
+            "end_frame": int(self.end_frame),
+            "confidence": float(self.confidence),
+            "duration": float(self.duration),
+        }
 
 
 @dataclass
@@ -162,6 +171,8 @@ class EventPredictor:
         threshold: float = 0.5,
         buffer_seconds: float = 3.0,
         min_gap_seconds: float = 2.0,
+        progress_callback: Optional[callable] = None,
+        event_callback: Optional[callable] = None,
     ) -> DetectionResult:
         """Detect events in a video.
 
@@ -170,12 +181,17 @@ class EventPredictor:
             threshold: Confidence threshold for detection.
             buffer_seconds: Seconds to add before/after detection.
             min_gap_seconds: Minimum gap between detections to merge.
+            progress_callback: Optional callback(current, total, status) for progress updates.
+            event_callback: Optional callback(event) called when an event is finalized.
 
         Returns:
             DetectionResult with detected events.
         """
         video_path = Path(video_path)
         metadata = get_video_metadata(video_path)
+
+        if progress_callback:
+            progress_callback(0, 100, "Loading video...")
 
         # Get domain to create inference dataset
         if self.domain:
@@ -206,35 +222,58 @@ class EventPredictor:
             pin_memory=True,
         )
 
-        # Run inference
-        timestamps = []
-        confidences = []
+        total_batches = len(loader)
 
-        for frames, info in tqdm(loader, desc="Detecting deliveries"):
+        # STATE for streaming detection
+        events = []
+        current_event_group = []  # List of (timestamp, confidence)
+        last_positive_time = -float("inf")
+        event_counter = 1
+
+        for batch_idx, (frames, info) in enumerate(tqdm(loader, desc="Detecting events")):
             frames = frames.to(self.device)
 
             probs = self.model.predict_proba(frames)
             probs = probs.cpu().numpy().flatten()
+            batch_timestamps = info["timestamp"].numpy()
 
             for i, prob in enumerate(probs):
-                timestamps.append(info["timestamp"][i].item())
-                confidences.append(prob)
+                timestamp = batch_timestamps[i]
+                
+                # Check for gap to finalize previous event
+                if current_event_group and (timestamp - last_positive_time > min_gap_seconds):
+                    # Finalize current group
+                    events.append(self._finalize_event(
+                        current_event_group, 
+                        event_counter, 
+                        metadata.fps, 
+                        buffer_seconds
+                    ))
+                    if event_callback:
+                        event_callback(events[-1])
+                    
+                    event_counter += 1
+                    current_event_group = []
 
-        timestamps = np.array(timestamps)
-        confidences = np.array(confidences)
+                if prob >= threshold:
+                    current_event_group.append((timestamp, prob))
+                    last_positive_time = timestamp
 
-        # Find detections above threshold
-        detections = confidences >= threshold
+            # Update progress
+            if progress_callback:
+                progress = int((batch_idx + 1) / total_batches * 100)
+                progress_callback(progress, 100, f"Processing batch {batch_idx + 1}/{total_batches}")
 
-        # Group consecutive detections
-        events = self._group_detections(
-            timestamps,
-            confidences,
-            detections,
-            metadata.fps,
-            buffer_seconds,
-            min_gap_seconds,
-        )
+        # Finalize any remaining group
+        if current_event_group:
+            events.append(self._finalize_event(
+                current_event_group, 
+                event_counter, 
+                metadata.fps, 
+                buffer_seconds
+            ))
+            if event_callback:
+                event_callback(events[-1])
 
         return DetectionResult(
             video_path=str(video_path),
@@ -247,81 +286,33 @@ class EventPredictor:
             domain=self.domain,
         )
 
-    def _group_detections(
-        self,
-        timestamps: np.ndarray,
-        confidences: np.ndarray,
-        detections: np.ndarray,
-        fps: float,
-        buffer_seconds: float,
-        min_gap_seconds: float,
-    ) -> list[Event]:
-        """Group consecutive detections into events.
-
-        Args:
-            timestamps: Array of timestamps.
-            confidences: Array of confidence scores.
-            detections: Boolean array of detections.
-            fps: Video FPS.
-            buffer_seconds: Buffer to add around detections.
-            min_gap_seconds: Minimum gap to not merge.
-
-        Returns:
-            List of Event objects.
-        """
-        if not detections.any():
-            return []
-
-        # Find detection indices
-        detection_indices = np.where(detections)[0]
-
-        # Group into continuous segments
-        groups = []
-        current_group = [detection_indices[0]]
-
-        for idx in detection_indices[1:]:
-            prev_idx = current_group[-1]
-            time_gap = timestamps[idx] - timestamps[prev_idx]
-
-            if time_gap <= min_gap_seconds:
-                current_group.append(idx)
-            else:
-                groups.append(current_group)
-                current_group = [idx]
-
-        groups.append(current_group)
-
-        # Create events
-        events = []
-        for i, group in enumerate(groups):
-            start_idx = group[0]
-            end_idx = group[-1]
-
-            # Get timestamps with buffer
-            start_time = max(0, timestamps[start_idx] - buffer_seconds)
-            end_time = timestamps[end_idx] + buffer_seconds
-
-            # Convert to frames
-            start_frame = int(start_time * fps)
-            end_frame = int(end_time * fps)
-
-            # Get max confidence in group
-            group_confidences = confidences[group]
-            max_confidence = float(np.max(group_confidences))
-
-            events.append(
-                Event(
-                    id=i + 1,
-                    start_time=start_time,
-                    end_time=end_time,
-                    start_frame=start_frame,
-                    end_frame=end_frame,
-                    confidence=max_confidence,
-                    duration=end_time - start_time,
-                )
-            )
-
-        return events
+    def _finalize_event(
+        self, 
+        group: list[tuple[float, float]], 
+        event_id: int, 
+        fps: float, 
+        buffer_seconds: float
+    ) -> Event:
+        """Create an Event object from a group of detections."""
+        timestamps = [t for t, _ in group]
+        confidences = [c for _, c in group]
+        
+        start_time = max(0, min(timestamps) - buffer_seconds)
+        end_time = max(timestamps) + buffer_seconds
+        
+        return Event(
+            id=event_id,
+            start_time=start_time,
+            end_time=end_time,
+            start_frame=int(start_time * fps),
+            end_frame=int(end_time * fps),
+            confidence=max(confidences),
+            duration=end_time - start_time,
+        )
+            
+    # Kept for backward compatibility if needed, but not used in streaming
+    def _group_detections(self, *args, **kwargs):
+        pass
 
 
 def extract_event_clips(
@@ -376,6 +367,8 @@ def detect_and_extract(
     **predictor_kwargs,
 ) -> tuple[DetectionResult, list[Path]]:
     """Detect events and extract clips in one call.
+    
+    Uses streaming extraction to generate clips while detection is running.
 
     Args:
         video_path: Path to video.
@@ -390,30 +383,59 @@ def detect_and_extract(
     Returns:
         (DetectionResult, list of clip paths)
     """
+    import concurrent.futures
+    
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
+    clips_dir = output_dir / "clips"
+    
+    if extract_clips:
+        clips_dir.mkdir(parents=True, exist_ok=True)
 
     # Create predictor
     predictor = EventPredictor.from_checkpoint(checkpoint_path, **predictor_kwargs)
+    
+    video_name = Path(video_path).stem
+    clip_paths = []
+    futures = []
+    
+    # Thread pool for async extraction
+    executor = concurrent.futures.ThreadPoolExecutor(max_workers=2)
 
-    # Run detection
-    result = predictor.predict_video(
-        video_path,
-        threshold=threshold,
-        buffer_seconds=buffer_seconds,
-    )
+    def _on_event(event: Event):
+        """Callback to extract clip immediately when event is detected."""
+        if extract_clips:
+            clip_name = f"{video_name}_event_{event.id:03d}"
+            output_path = clips_dir / f"{clip_name}.mp4"
+            clip_paths.append(output_path)
+            
+            # Submit to thread pool
+            futures.append(executor.submit(
+                extract_clip,
+                video_path,
+                output_path,
+                event.start_time,
+                event.end_time,
+            ))
+
+    try:
+        # Run detection with callback
+        result = predictor.predict_video(
+            video_path,
+            threshold=threshold,
+            buffer_seconds=buffer_seconds,
+            event_callback=_on_event,
+        )
+        
+        # Wait for all extractions to finish
+        if futures:
+            concurrent.futures.wait(futures)
+            
+    finally:
+        executor.shutdown(wait=True)
 
     # Save detections
     if save_detections:
-        video_name = Path(video_path).stem
         result.save(output_dir / f"{video_name}_detections.json")
-
-    # Extract clips
-    clip_paths = []
-    if extract_clips and result.events:
-        clip_paths = extract_event_clips(
-            result,
-            output_dir / "clips",
-        )
 
     return result, clip_paths

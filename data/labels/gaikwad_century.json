@@ -190,6 +190,22 @@
       "notes": ""
     },
     {
+      "id": "71e58e6d",
+      "start_frame": 6750,
+      "end_frame": 6978,
+      "delivery_type": null,
+      "outcome": null,
+      "notes": "Verified from new_001"
+    },
+    {
+      "id": "964758ce",
+      "start_frame": 6978,
+      "end_frame": 7230,
+      "delivery_type": null,
+      "outcome": null,
+      "notes": "Verified from new_002"
+    },
+    {
       "id": "96186cc5",
       "start_frame": 7427,
       "end_frame": 7667,
@@ -254,12 +270,124 @@
       "notes": ""
     },
     {
+      "id": "6f83571a",
+      "start_frame": 12606,
+      "end_frame": 12846,
+      "delivery_type": null,
+      "outcome": null,
+      "notes": "Verified from new_003"
+    },
+    {
+      "id": "7d96d9fe",
+      "start_frame": 13014,
+      "end_frame": 13230,
+      "delivery_type": null,
+      "outcome": null,
+      "notes": "Verified from new_004"
+    },
+    {
+      "id": "ddf5cdeb",
+      "start_frame": 13302,
+      "end_frame": 13530,
+      "delivery_type": null,
+      "outcome": null,
+      "notes": "Verified from new_005"
+    },
+    {
+      "id": "2c2c982d",
+      "start_frame": 14562,
+      "end_frame": 14814,
+      "delivery_type": null,
+      "outcome": null,
+      "notes": "Verified from new_006"
+    },
+    {
       "id": "363601df",
       "start_frame": 17820,
       "end_frame": 17910,
       "delivery_type": null,
       "outcome": null,
       "notes": "Missed by model - from unreviewed_023"
+    },
+    {
+      "id": "d6ec699d",
+      "start_frame": 18378,
+      "end_frame": 18558,
+      "delivery_type": null,
+      "outcome": null,
+      "notes": "Verified from new_007"
+    },
+    {
+      "id": "49d46447",
+      "start_frame": 18750,
+      "end_frame": 18990,
+      "delivery_type": null,
+      "outcome": null,
+      "notes": "Verified from new_008"
+    },
+    {
+      "id": "bce18aaf",
+      "start_frame": 19722,
+      "end_frame": 19962,
+      "delivery_type": null,
+      "outcome": null,
+      "notes": "Verified from new_009"
+    },
+    {
+      "id": "0b3f511b",
+      "start_frame": 20082,
+      "end_frame": 20322,
+      "delivery_type": null,
+      "outcome": null,
+      "notes": "Verified from new_010"
+    },
+    {
+      "id": "ced942b0",
+      "start_frame": 20514,
+      "end_frame": 20742,
+      "delivery_type": null,
+      "outcome": null,
+      "notes": "Verified from new_011"
+    },
+    {
+      "id": "87ce9b0f",
+      "start_frame": 20934,
+      "end_frame": 21150,
+      "delivery_type": null,
+      "outcome": null,
+      "notes": "Verified from new_012"
+    },
+    {
+      "id": "f365f6d7",
+      "start_frame": 21198,
+      "end_frame": 21414,
+      "delivery_type": null,
+      "outcome": null,
+      "notes": "Verified from new_013"
+    },
+    {
+      "id": "18cc8f06",
+      "start_frame": 21558,
+      "end_frame": 21834,
+      "delivery_type": null,
+      "outcome": null,
+      "notes": "Verified from new_014"
+    },
+    {
+      "id": "0cc4ad05",
+      "start_frame": 22602,
+      "end_frame": 22806,
+      "delivery_type": null,
+      "outcome": null,
+      "notes": "Verified from new_015"
+    },
+    {
+      "id": "a75ea708",
+      "start_frame": 23202,
+      "end_frame": 23418,
+      "delivery_type": null,
+      "outcome": null,
+      "notes": "Verified from new_016"
     },
     {
       "id": "1853b0f4",
@@ -270,12 +398,36 @@
       "notes": "Auto-detected from last 10 min (detection #1)"
     },
     {
+      "id": "9fe6de85",
+      "start_frame": 25086,
+      "end_frame": 25314,
+      "delivery_type": null,
+      "outcome": null,
+      "notes": "Verified from new_017"
+    },
+    {
       "id": "f20d764b",
       "start_frame": 26556,
       "end_frame": 26772,
       "delivery_type": null,
       "outcome": null,
       "notes": "Auto-detected from last 10 min (detection #2)"
+    },
+    {
+      "id": "c81f5bb9",
+      "start_frame": 26874,
+      "end_frame": 27066,
+      "delivery_type": null,
+      "outcome": null,
+      "notes": "Verified from new_018"
+    },
+    {
+      "id": "476da7ce",
+      "start_frame": 27138,
+      "end_frame": 27330,
+      "delivery_type": null,
+      "outcome": null,
+      "notes": "Verified from new_019"
     },
     {
       "id": "8b4c3d37",
@@ -300,6 +452,22 @@
       "delivery_type": null,
       "outcome": null,
       "notes": "Auto-detected from last 10 min (detection #6)"
+    },
+    {
+      "id": "013441ac",
+      "start_frame": 29982,
+      "end_frame": 30174,
+      "delivery_type": null,
+      "outcome": null,
+      "notes": "Verified from new_020"
+    },
+    {
+      "id": "ffdab271",
+      "start_frame": 31074,
+      "end_frame": 31277,
+      "delivery_type": null,
+      "outcome": null,
+      "notes": "Verified from new_022"
     },
     {
       "id": "d68f4ef7",
@@ -356,6 +524,22 @@
       "delivery_type": null,
       "outcome": null,
       "notes": "Auto-detected from last 10 min (detection #12)"
+    },
+    {
+      "id": "9b0a9d03",
+      "start_frame": 39990,
+      "end_frame": 40194,
+      "delivery_type": null,
+      "outcome": null,
+      "notes": "Verified from new_023"
+    },
+    {
+      "id": "71cfd9b5",
+      "start_frame": 40962,
+      "end_frame": 41166,
+      "delivery_type": null,
+      "outcome": null,
+      "notes": "Verified from new_024"
     }
   ],
   "false_positives": [
@@ -370,6 +554,12 @@
       "start_frame": 31362,
       "end_frame": 31614,
       "notes": "Detection 059 - not a real delivery"
+    },
+    {
+      "id": "fp_003",
+      "start_frame": 30162,
+      "end_frame": 30366,
+      "notes": "new_021 - not a real delivery"
     }
   ]
 }

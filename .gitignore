@@ -71,3 +71,10 @@ Thumbs.db
 # Environment variables
 .env
 .env.local
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.backup
+*.tfvars
+.terraform.lock.hcl

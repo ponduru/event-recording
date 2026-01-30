@@ -1,0 +1,71 @@
+{
+  "deliveries": [
+    {
+      "id": 1,
+      "start_time": 54.723333333333336,
+      "end_time": 58.723333333333336,
+      "confidence": 0.5519534349441528,
+      "status": "approved"
+    },
+    {
+      "id": 2,
+      "start_time": 90.75933333333333,
+      "end_time": 94.75933333333333,
+      "confidence": 0.9326598048210144,
+      "status": "approved"
+    },
+    {
+      "id": 3,
+      "start_time": 126.79533333333333,
+      "end_time": 132.13,
+      "confidence": 0.9862256050109863,
+      "status": "approved"
+    },
+    {
+      "id": 4,
+      "start_time": 214.88333333333333,
+      "end_time": 218.88333333333333,
+      "confidence": 0.966783881187439,
+      "status": "approved"
+    },
+    {
+      "id": 5,
+      "start_time": 339.00733333333335,
+      "end_time": 344.342,
+      "confidence": 0.9845202565193176,
+      "status": "approved"
+    },
+    {
+      "id": 6,
+      "start_time": 373.70866666666666,
+      "end_time": 377.70866666666666,
+      "confidence": 0.9887583255767822,
+      "status": "approved"
+    },
+    {
+      "id": 7,
+      "start_time": 408.41,
+      "end_time": 412.41,
+      "confidence": 0.9895752668380737,
+      "status": "approved"
+    },
+    {
+      "id": 8,
+      "start_time": 443.11133333333333,
+      "end_time": 449.78066666666666,
+      "confidence": 0.9912808537483215,
+      "status": "approved"
+    },
+    {
+      "id": 9,
+      "start_time": 488.49,
+      "end_time": 492.49,
+      "confidence": 0.6575512290000916,
+      "status": "approved"
+    }
+  ],
+  "video_path": "data/raw/\ud83c\udf86 Moeen & Bairstow Fireworks With The Bat IN FULL \uff5c England v South Africa_part018.mp4",
+  "fps": 29.97002997002997,
+  "threshold": 0.5,
+  "detected_at": "2026-01-24 15:28:06"
+}

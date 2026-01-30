@@ -429,23 +429,65 @@ def create_train_val_split(
     labels_dir = Path(labels_dir)
     label_files = list(labels_dir.glob("*.json"))
 
-    # Shuffle and split
-    random.shuffle(label_files)
+    return create_train_val_split_from_files(
+        domain=domain,
+        label_files=label_files,
+        videos_dir=videos_dir,
+        val_ratio=val_ratio,
+        **dataset_kwargs,
+    )
 
-    # Handle case with only 1 label file - use same file for train and val
-    if len(label_files) == 1:
-        print("Warning: Only 1 label file found. Using same data for train and validation.")
-        train_files = label_files
-        val_files = label_files
-    else:
-        n_val = max(1, int(len(label_files) * val_ratio))
-        val_files = label_files[:n_val]
-        train_files = label_files[n_val:]
 
-    # Create temporary directories for split
+def create_train_val_split_from_files(
+    domain,
+    label_files: list[Path],
+    videos_dir: str | Path,
+    val_ratio: float = 0.2,
+    **dataset_kwargs,
+) -> tuple[Dataset, Dataset]:
+    """Create train and validation datasets from specific label files.
+
+    This function allows selective training on specific videos rather than
+    using all videos in a directory.
+
+    Args:
+        domain: Domain instance to use for dataset creation.
+        label_files: List of specific label file paths to use.
+        videos_dir: Directory containing videos.
+        val_ratio: Fraction of videos for validation.
+        **dataset_kwargs: Additional arguments for dataset.
+
+    Returns:
+        (train_dataset, val_dataset)
+    """
     import tempfile
     import shutil
 
+    # Ensure all paths are Path objects
+    label_files = [Path(f) for f in label_files]
+    videos_dir = Path(videos_dir)
+
+    # Filter to only existing files
+    existing_files = [f for f in label_files if f.exists()]
+    if not existing_files:
+        raise ValueError("No valid label files provided")
+
+    # Shuffle and split
+    random.shuffle(existing_files)
+
+    # Handle case with only 1 label file - use same file for train and val
+    if len(existing_files) == 1:
+        print("Warning: Only 1 label file found. Using same data for train and validation.")
+        train_files = existing_files
+        val_files = existing_files
+    else:
+        n_val = max(1, int(len(existing_files) * val_ratio))
+        val_files = existing_files[:n_val]
+        train_files = existing_files[n_val:]
+
+    print(f"Training on {len(train_files)} videos, validating on {len(val_files)} videos")
+
+    # Create temporary directories for split
     train_labels_dir = Path(tempfile.mkdtemp())
     val_labels_dir = Path(tempfile.mkdtemp())
 
