@@ -3,7 +3,7 @@
 # Cost breakdown:
 # - S3 (50GB): ~$2/month
 # - RDS db.t3.micro: ~$15/month (or free tier first year)
-# - EC2 t3.micro for UI: ~$8/month (or free tier first year)
+# - EC2 t3.small for UI: ~$15/month (2GB RAM for inference)
 # - GPU on-demand (2h): ~$4/month
 # - No NAT Gateway (use public subnets + VPC endpoints)
 # - No ALB (access EC2 directly)
@@ -377,7 +377,7 @@ data "aws_ami" "amazon_linux" {
 
 resource "aws_instance" "app" {
   ami                    = data.aws_ami.amazon_linux.id
-  instance_type          = "t3.micro"  # Free tier eligible!
+  instance_type          = "t3.small"  # ~$15/month, 2GB RAM needed for inference
   subnet_id              = aws_subnet.public.id
   vpc_security_group_ids = [aws_security_group.app.id]
   iam_instance_profile   = aws_iam_instance_profile.app.name
@@ -655,7 +655,7 @@ output "ssh_command" {
 output "estimated_monthly_cost" {
   description = "Estimated monthly cost"
   value       = <<-EOT
-    EC2 t3.micro (app):     $0 (free tier) or ~$8/month
+    EC2 t3.small (app):     ~$15/month
     RDS db.t3.micro:        $0 (free tier) or ~$15/month
     S3 (50GB):              ~$2/month
     GPU (2 hours):          ~$1/month

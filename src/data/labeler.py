@@ -589,9 +589,9 @@ def run_analysis_tab(domain: str = "cricket"):
         with speed_cols[2]:
             batch_size = st.select_slider(
                 "Batch Size",
-                options=[4, 8, 16, 32],
-                value=16,
-                help="Higher = faster if GPU has memory"
+                options=[1, 2, 4, 8, 16],
+                value=4,
+                help="Lower = less memory; higher = faster"
             )
 
     # Detection state
@@ -662,14 +662,68 @@ def run_analysis_tab(domain: str = "cricket"):
             local_model_path = storage.read_model(model_name)
             local_video_path = storage.read_video(selected_video)
 
-            progress_info.markdown("**Running detection in background process...**")
+            # Try to download ONNX model from storage if available
+            onnx_model_name = model_name.replace(".pt", ".onnx")
+            onnx_model_path = Path(str(local_model_path)).with_suffix(".onnx")
+            use_onnx = False
+            if storage.exists(onnx_model_name, "models"):
+                try:
+                    storage.read_model(onnx_model_name)
+                    use_onnx = onnx_model_path.exists()
+                except Exception:
+                    pass
+
+            progress_info.markdown(f"**Running detection ({'ONNX' if use_onnx else 'PyTorch'})...**")
 
             # Run detection in a subprocess to isolate memory usage.
             # If PyTorch OOMs, the subprocess dies but Streamlit survives.
             with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as tmp:
                 output_path = tmp.name
 
-            detect_script = f"""
+            if use_onnx:
+                detect_script = f"""
+import json, sys, os
+os.environ['OMP_NUM_THREADS'] = '1'
+os.environ['MKL_NUM_THREADS'] = '1'
+import time
+start = time.time()
+from src.inference.onnx_predictor import OnnxEventPredictor
+predictor = OnnxEventPredictor(
+    "{onnx_model_path}",
+    window_size=8,
+    stride={stride},
+    target_fps={target_fps},
+    batch_size={batch_size},
+)
+result = predictor.predict_video(
+    "{local_video_path}",
+    threshold={threshold},
+    buffer_seconds=2.0,
+)
+elapsed = time.time() - start
+data = {{
+    "deliveries": [
+        {{
+            "id": int(d.id),
+            "start_time": float(d.start_time),
+            "end_time": float(d.end_time),
+            "confidence": float(d.confidence),
+            "status": "pending",
+        }}
+        for d in result.events
+    ],
+    "video_path": "{selected_video}",
+    "fps": float(result.fps),
+    "threshold": float({threshold}),
+    "detected_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+    "elapsed": elapsed,
+    "runtime": "onnx",
+}}
+with open("{output_path}", "w") as f:
+    json.dump(data, f)
+"""
+            else:
+                detect_script = f"""
 import json, sys, os
 os.environ['OMP_NUM_THREADS'] = '1'
 os.environ['MKL_NUM_THREADS'] = '1'
@@ -705,6 +759,7 @@ data = {{
     "threshold": float({threshold}),
     "detected_at": time.strftime("%Y-%m-%d %H:%M:%S"),
     "elapsed": elapsed,
+    "runtime": "pytorch",
 }}
 with open("{output_path}", "w") as f:
     json.dump(data, f)
@@ -737,6 +792,7 @@ with open("{output_path}", "w") as f:
             os.unlink(output_path)
 
             elapsed = detection_data.pop("elapsed", 0)
+            runtime = detection_data.pop("runtime", "pytorch")
             st.session_state[detection_key] = detection_data
 
             # Save to storage for persistence
@@ -744,7 +800,8 @@ with open("{output_path}", "w") as f:
 
             st.session_state.detection_running = False
             num_events = len(detection_data["deliveries"])
-            st.success(f"Found {num_events} events in {elapsed:.1f}s! Results saved.")
+            runtime_label = "ONNX" if runtime == "onnx" else "PyTorch"
+            st.success(f"Found {num_events} events in {elapsed:.1f}s ({runtime_label})! Results saved.")
             st.rerun()
         except subprocess.TimeoutExpired:
             st.session_state.detection_running = False
@@ -1411,12 +1468,32 @@ def run_training_tab(domain: str = "cricket"):
                     st.caption("Val Accuracy")
                     st.markdown(f"**{model['val_accuracy']*100:.1f}%**")
 
-                # Load model button
-                if st.button("Use this model", key=f"load_model_{model['name']}", use_container_width=False):
-                    # Copy to the default model key
-                    local_model_path = storage.read_model(model["storage_key"])
-                    storage.write_model(local_model_path, "delivery_detector_best.pt")
-                    st.success(f"Model loaded! Now available for detection in Analysis tab.")
+                # Model action buttons
+                btn_cols = st.columns(2)
+                with btn_cols[0]:
+                    if st.button("Use this model", key=f"load_model_{model['name']}", use_container_width=True):
+                        # Copy to the default model key
+                        local_model_path = storage.read_model(model["storage_key"])
+                        storage.write_model(local_model_path, "delivery_detector_best.pt")
+                        # Auto-export ONNX alongside
+                        try:
+                            from src.inference.onnx_export import export_to_onnx
+                            onnx_path = export_to_onnx(str(local_model_path))
+                            storage.write_model(onnx_path, "delivery_detector_best.onnx")
+                            st.success("Model loaded + ONNX exported! Ready for detection.")
+                        except Exception:
+                            st.success("Model loaded! Now available for detection in Analysis tab.")
+                with btn_cols[1]:
+                    if st.button("Export ONNX", key=f"export_onnx_{model['name']}", use_container_width=True):
+                        try:
+                            from src.inference.onnx_export import export_to_onnx
+                            local_model_path = storage.read_model(model["storage_key"])
+                            onnx_path = export_to_onnx(str(local_model_path))
+                            onnx_key = model["storage_key"].replace(".pt", ".onnx")
+                            storage.write_model(onnx_path, onnx_key)
+                            st.success(f"ONNX model exported as {onnx_key}")
+                        except Exception as e:
+                            st.error(f"ONNX export failed: {e}")
 
 
 def run_labeler():

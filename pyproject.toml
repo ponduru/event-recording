@@ -58,11 +58,14 @@ db = [
     "psycopg2-binary>=2.9.0",
     "alembic>=1.12.0",
 ]
+onnx = [
+    "onnxruntime>=1.16.0",
+]
 gpu = [
     "nvidia-ml-py>=12.0.0",
 ]
 all = [
-    "prismata[dev,labeling,tracking,aws,db]",
+    "prismata[dev,labeling,tracking,aws,db,onnx]",
 ]
 
 [project.scripts]
