@@ -606,10 +606,17 @@ def run_analysis_tab(domain: str = "cricket"):
     # Show existing detections status and options
     existing_status = get_detection_status(storage, selected_video)
 
+    # Track detection in progress
+    if "detection_running" not in st.session_state:
+        st.session_state.detection_running = False
+
     col_btn1, col_btn2, col_info = st.columns([1, 1, 2])
 
     with col_btn1:
-        run_new = st.button("Run Detection", type="primary", use_container_width=True)
+        if st.session_state.detection_running:
+            st.button("Detecting...", type="primary", use_container_width=True, disabled=True)
+        else:
+            run_new = st.button("Run Detection", type="primary", use_container_width=True)
 
     with col_btn2:
         if existing_status:
@@ -631,8 +638,15 @@ def run_analysis_tab(domain: str = "cricket"):
             )
 
     # Run detection button with styled appearance
+    if not st.session_state.detection_running:
+        pass  # run_new already set by button above
+    else:
+        run_new = False
+
     if run_new:
+        st.session_state.detection_running = True
         if not storage.exists(model_name, "models"):
+            st.session_state.detection_running = False
             st.error("No model found. Train a model first in the TRAINING tab.")
             return
 
@@ -740,9 +754,11 @@ def run_analysis_tab(domain: str = "cricket"):
             # Save to storage for persistence
             save_detections(storage, selected_video, detection_data)
 
+            st.session_state.detection_running = False
             st.success(f"Found {len(result.events)} events! Results saved.")
             st.rerun()
         except Exception as e:
+            st.session_state.detection_running = False
             import traceback
             st.error(f"Detection failed: {e}")
             with st.expander("Error details"):
