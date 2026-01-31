@@ -63,4 +63,4 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
 EXPOSE 8501
 
 # Run Streamlit
-CMD ["streamlit", "run", "scripts/label.py", "--server.port=8501", "--server.address=0.0.0.0"]
+CMD ["streamlit", "run", "src/data/labeler.py", "--server.port=8501", "--server.address=0.0.0.0", "--", "--domain", "cricket"]
