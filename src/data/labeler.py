@@ -866,7 +866,6 @@ with open("{output_path}", "w") as f:
 
             # Use ffmpeg to extract clip to temp file
             import tempfile
-            import subprocess
 
             clip_duration = (selected["end_time"] - selected["start_time"]) + 4
 
