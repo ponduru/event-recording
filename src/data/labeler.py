@@ -709,6 +709,7 @@ def run_analysis_tab(domain: str = "cricket"):
                 target_fps=target_fps,
                 stride=stride,
                 batch_size=batch_size,
+                num_workers=0,
             )
 
             # Download video to local cache for cv2/ffmpeg processing
