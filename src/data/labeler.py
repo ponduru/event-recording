@@ -17,6 +17,7 @@ import sys
 
 from src.utils.video import VideoMetadata, get_video_metadata
 from src.data.ui_theme import inject_theme, COLORS, status_badge, domain_badge, styled_header, training_stat_card, video_status_icon
+from src.storage import get_storage_backend, StorageBackend
 
 
 @dataclass
@@ -463,71 +464,57 @@ def keyboard_listener():
     components.html(js_code, height=0)
 
 
-def load_detections(detections_dir: Path, video_name: str) -> Optional[dict]:
+def load_detections(storage: StorageBackend, video_name: str) -> Optional[dict]:
     """Load saved detection results for a video.
 
     Args:
-        detections_dir: Directory containing detection JSON files.
+        storage: Storage backend instance.
         video_name: Name of the video file.
 
     Returns:
         Detection dict if found, None otherwise.
     """
-    detection_file = detections_dir / f"{Path(video_name).stem}_detections.json"
-    if detection_file.exists():
-        try:
-            with open(detection_file) as f:
-                return json.load(f)
-        except json.JSONDecodeError:
-            # Delete corrupted file so user can re-run detection
-            print(f"Warning: Corrupted detection file deleted: {detection_file}")
-            detection_file.unlink()
-        except Exception as e:
-            print(f"Error loading detections: {e}")
+    detection_key = f"{Path(video_name).stem}_detections.json"
+    try:
+        return storage.read_detection(detection_key)
+    except (FileNotFoundError, ValueError):
+        return None
+    except json.JSONDecodeError:
+        # Delete corrupted file so user can re-run detection
+        print(f"Warning: Corrupted detection file deleted: {detection_key}")
+        storage.delete(detection_key, "detections")
+    except Exception as e:
+        # Handle S3 ClientError (NoSuchKey) and other "not found" errors
+        err_str = str(e)
+        if "NoSuchKey" in err_str or "Not Found" in err_str or "404" in err_str:
+            return None
+        print(f"Error loading detections: {e}")
     return None
 
 
-def save_detections(detections_dir: Path, video_name: str, detections: dict) -> None:
+def save_detections(storage: StorageBackend, video_name: str, detections: dict) -> None:
     """Save detection results for a video.
 
-    Uses atomic file writes to prevent corruption if the process crashes mid-write.
-
     Args:
-        detections_dir: Directory to save detection JSON files.
+        storage: Storage backend instance.
         video_name: Name of the video file.
         detections: Detection results dict.
     """
-    import tempfile
-    import os
-
-    detections_dir.mkdir(parents=True, exist_ok=True)
-    detection_file = detections_dir / f"{Path(video_name).stem}_detections.json"
-
-    # Write to temp file first, then atomic rename
-    fd, tmp_path = tempfile.mkstemp(suffix='.json', dir=detections_dir)
-    try:
-        with os.fdopen(fd, 'w') as tmp:
-            json.dump(detections, tmp, indent=2)
-        # Atomic rename
-        os.replace(tmp_path, detection_file)
-    except:
-        # Clean up temp file on error
-        if os.path.exists(tmp_path):
-            os.unlink(tmp_path)
-        raise
+    detection_key = f"{Path(video_name).stem}_detections.json"
+    storage.write_detection(detections, detection_key)
 
 
-def get_detection_status(detections_dir: Path, video_name: str) -> Optional[dict]:
+def get_detection_status(storage: StorageBackend, video_name: str) -> Optional[dict]:
     """Get quick status of detections for a video without loading full data.
 
     Args:
-        detections_dir: Directory containing detection JSON files.
+        storage: Storage backend instance.
         video_name: Name of the video file.
 
     Returns:
         Dict with count and status summary, or None if no detections.
     """
-    detections = load_detections(detections_dir, video_name)
+    detections = load_detections(storage, video_name)
     if detections and "deliveries" in detections:
         deliveries = detections["deliveries"]
         return {
@@ -543,11 +530,7 @@ def run_analysis_tab(domain: str = "cricket"):
     """Run the analysis tab for reviewing model detections."""
     st.markdown(f"## Analysis {domain_badge(domain)}", unsafe_allow_html=True)
 
-    # Directories
-    videos_dir = Path("data/raw")
-    model_path = Path("models/delivery_detector_best.pt")
-    labels_dir = Path("data/labels")
-    detections_dir = Path("data/detections")
+    storage: StorageBackend = st.session_state.storage
 
     # Settings in a card-like container
     with st.container():
@@ -555,16 +538,16 @@ def run_analysis_tab(domain: str = "cricket"):
 
         with col1:
             # Video selection with detection status indicators
-            video_files = list(videos_dir.glob("*.mp4")) + list(videos_dir.glob("*.mov")) if videos_dir.exists() else []
+            video_names = storage.list_videos(pattern="*.mp4,*.mov")
 
             # Build video options with detection status
             video_options = ["Select a video..."]
-            for vf in video_files:
-                status = get_detection_status(detections_dir, vf.name)
+            for vname in video_names:
+                status = get_detection_status(storage, vname)
                 if status:
-                    video_options.append(f"{vf.name} [{status['total']} detections]")
+                    video_options.append(f"{vname} [{status['total']} detections]")
                 else:
-                    video_options.append(vf.name)
+                    video_options.append(vname)
 
             selected_option = st.selectbox("Select Video", video_options, key="analysis_video")
 
@@ -578,13 +561,12 @@ def run_analysis_tab(domain: str = "cricket"):
             else:
                 selected_video = selected_option
 
-            video_path = videos_dir / selected_video
-
         with col2:
             threshold = st.slider("Confidence Threshold", 0.1, 0.9, 0.5, 0.05)
 
             # Check if model exists
-            if not model_path.exists():
+            model_name = "delivery_detector_best.pt"
+            if not storage.exists(model_name, "models"):
                 st.warning("No model found. Train a model first to run new detections.")
 
     # Advanced settings in expander
@@ -615,14 +597,14 @@ def run_analysis_tab(domain: str = "cricket"):
     # Detection state
     detection_key = f"detections_{selected_video}_{threshold}"
 
-    # Try to load existing detections from disk if not in session state
+    # Try to load existing detections from storage if not in session state
     if detection_key not in st.session_state:
-        existing_detections = load_detections(detections_dir, selected_video)
+        existing_detections = load_detections(storage, selected_video)
         if existing_detections:
             st.session_state[detection_key] = existing_detections
 
     # Show existing detections status and options
-    existing_status = get_detection_status(detections_dir, selected_video)
+    existing_status = get_detection_status(storage, selected_video)
 
     col_btn1, col_btn2, col_info = st.columns([1, 1, 2])
 
@@ -633,7 +615,7 @@ def run_analysis_tab(domain: str = "cricket"):
         if existing_status:
             load_existing = st.button("Load Saved", type="secondary", use_container_width=True)
             if load_existing:
-                saved_detections = load_detections(detections_dir, selected_video)
+                saved_detections = load_detections(storage, selected_video)
                 if saved_detections:
                     st.session_state[detection_key] = saved_detections
                     st.success(f"Loaded {existing_status['total']} saved detections")
@@ -650,7 +632,7 @@ def run_analysis_tab(domain: str = "cricket"):
 
     # Run detection button with styled appearance
     if run_new:
-        if not model_path.exists():
+        if not storage.exists(model_name, "models"):
             st.error("No model found. Train a model first in the TRAINING tab.")
             return
 
@@ -668,7 +650,7 @@ def run_analysis_tab(domain: str = "cricket"):
             # Live results container
             live_header = st.empty()
             live_container = st.container()
-            
+
             start_time = time.time()
             live_events = []
 
@@ -690,33 +672,37 @@ def run_analysis_tab(domain: str = "cricket"):
                     f"<span style='color: #A1A1AA; font-size: 0.85rem;'>{status}</span>",
                     unsafe_allow_html=True
                 )
-            
+
             # Event callback for live updates
             def on_event(event):
                 live_events.append(event)
                 cnt = len(live_events)
                 live_header.markdown(f"### Live Detections ({cnt})")
-                
+
                 with live_container:
                     # Create a card for this event
                     start_min = int(event.start_time // 60)
                     start_sec = int(event.start_time % 60)
                     conf_pct = int(event.confidence * 100)
-                    
+
                     st.info(f"**Event #{cnt}**: {start_min}:{start_sec:02d} (Confidence: {conf_pct}%)")
 
-            # Load model with speed settings
+            # Load model with speed settings — download to cache if S3
             progress_info.markdown("**Loading model...**")
+            local_model_path = storage.read_model(model_name)
             predictor = EventPredictor.from_checkpoint(
-                str(model_path),
+                str(local_model_path),
                 target_fps=target_fps,
                 stride=stride,
                 batch_size=batch_size,
             )
 
+            # Download video to local cache for cv2/ffmpeg processing
+            local_video_path = storage.read_video(selected_video)
+
             # Run detection with progress
             result = predictor.predict_video(
-                str(video_path),
+                str(local_video_path),
                 threshold=threshold,
                 buffer_seconds=2.0,
                 progress_callback=update_progress,
@@ -744,15 +730,15 @@ def run_analysis_tab(domain: str = "cricket"):
                     }
                     for d in result.events
                 ],
-                "video_path": str(video_path),
+                "video_path": selected_video,
                 "fps": float(result.fps),
                 "threshold": float(threshold),
                 "detected_at": time.strftime("%Y-%m-%d %H:%M:%S"),
             }
             st.session_state[detection_key] = detection_data
 
-            # Save to disk for persistence
-            save_detections(detections_dir, selected_video, detection_data)
+            # Save to storage for persistence
+            save_detections(storage, selected_video, detection_data)
 
             st.success(f"Found {len(result.events)} events! Results saved.")
             st.rerun()
@@ -875,12 +861,15 @@ def run_analysis_tab(domain: str = "cricket"):
 
             clip_duration = (selected["end_time"] - selected["start_time"]) + 4
 
+            # Download video to local cache for ffmpeg processing
+            local_video_path = storage.read_video(selected_video)
+
             with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as tmp:
                 tmp_path = tmp.name
 
             try:
                 subprocess.run([
-                    "ffmpeg", "-y", "-ss", str(start_time), "-i", str(video_path),
+                    "ffmpeg", "-y", "-ss", str(start_time), "-i", str(local_video_path),
                     "-t", str(clip_duration), "-c:v", "libx264", "-c:a", "aac",
                     "-loglevel", "error", tmp_path
                 ], check=True, capture_output=True)
@@ -903,16 +892,17 @@ def run_analysis_tab(domain: str = "cricket"):
                     # Mark as approved and add to training labels
                     selected["status"] = "approved"
 
-                    # Save detection status to disk
-                    save_detections(detections_dir, selected_video, detections)
+                    # Save detection status to storage
+                    save_detections(storage, selected_video, detections)
 
                     # Add to labels file
-                    labels_path = labels_dir / f"{video_path.stem}.json"
-                    if labels_path.exists():
-                        labels = VideoLabels.load(labels_path)
+                    labels_key = f"{Path(selected_video).stem}.json"
+                    if storage.labels_exist(labels_key):
+                        labels = VideoLabels.from_dict(storage.read_labels(labels_key))
                     else:
+                        local_video_path = storage.read_video(selected_video)
                         from src.utils.video import get_video_metadata
-                        metadata = get_video_metadata(str(video_path))
+                        metadata = get_video_metadata(str(local_video_path))
                         labels = VideoLabels.from_metadata(metadata)
 
                     # Check if already exists (by time overlap)
@@ -926,7 +916,7 @@ def run_analysis_tab(domain: str = "cricket"):
 
                     if not already_exists:
                         labels.add_delivery(start_frame, end_frame)
-                        labels.save(labels_path)
+                        storage.write_labels(labels.to_dict(), labels_key)
                         st.success("Added to training set!")
                     else:
                         st.info("Already in training set")
@@ -939,16 +929,17 @@ def run_analysis_tab(domain: str = "cricket"):
                     # Mark as rejected and add as false positive
                     selected["status"] = "rejected"
 
-                    # Save detection status to disk
-                    save_detections(detections_dir, selected_video, detections)
+                    # Save detection status to storage
+                    save_detections(storage, selected_video, detections)
 
                     # Add to labels file as false positive
-                    labels_path = labels_dir / f"{video_path.stem}.json"
-                    if labels_path.exists():
-                        labels = VideoLabels.load(labels_path)
+                    labels_key = f"{Path(selected_video).stem}.json"
+                    if storage.labels_exist(labels_key):
+                        labels = VideoLabels.from_dict(storage.read_labels(labels_key))
                     else:
+                        local_video_path = storage.read_video(selected_video)
                         from src.utils.video import get_video_metadata
-                        metadata = get_video_metadata(str(video_path))
+                        metadata = get_video_metadata(str(local_video_path))
                         labels = VideoLabels.from_metadata(metadata)
 
                     start_frame = int(selected["start_time"] * fps)
@@ -967,7 +958,7 @@ def run_analysis_tab(domain: str = "cricket"):
                             end_frame=end_frame,
                             notes="Rejected from analysis UI",
                         ))
-                        labels.save(labels_path)
+                        storage.write_labels(labels.to_dict(), labels_key)
                         st.success("Added as false positive for training!")
                     else:
                         st.info("Already marked as false positive")
@@ -988,31 +979,33 @@ def run_analysis_tab(domain: str = "cricket"):
     save_cols = st.columns([3, 1])
     with save_cols[1]:
         if st.button("Save Progress", use_container_width=True, key="save_progress"):
-            # Save current detection state to disk
-            save_detections(detections_dir, selected_video, detections)
-            st.success("Progress saved to disk!")
+            # Save current detection state to storage
+            save_detections(storage, selected_video, detections)
+            st.success("Progress saved!")
 
 
-def get_labeled_videos(labels_dir: Path, videos_dir: Path) -> list[dict]:
+def get_labeled_videos(storage: StorageBackend) -> list[dict]:
     """Get all labeled videos with stats.
 
     Args:
-        labels_dir: Directory containing label JSON files.
-        videos_dir: Directory containing video files.
+        storage: Storage backend instance.
 
     Returns:
         List of dicts with video info and stats.
     """
     videos = []
-    for json_file in labels_dir.glob("*.json"):
+    available_videos = set(storage.list_videos(pattern="*.mp4,*.mov"))
+
+    for label_name in storage.list_labels():
         try:
-            labels = VideoLabels.load(json_file)
-            # Check if video exists
-            video_path = Path(labels.video_path)
-            if not video_path.exists():
-                # Try in videos_dir
-                video_path = videos_dir / video_path.name
-            video_exists = video_path.exists()
+            label_data = storage.read_labels(label_name)
+            labels = VideoLabels.from_dict(label_data)
+
+            # Determine video name from label filename
+            video_stem = Path(label_name).stem
+            video_name = f"{video_stem}.mp4"
+            # Check if the video exists in storage
+            video_exists = video_name in available_videos
 
             # Calculate duration
             duration_seconds = labels.total_frames / labels.fps if labels.fps > 0 else 0
@@ -1020,9 +1013,8 @@ def get_labeled_videos(labels_dir: Path, videos_dir: Path) -> list[dict]:
             duration_sec = int(duration_seconds % 60)
 
             videos.append({
-                "label_file": json_file,
-                "video_name": video_path.name,
-                "video_path": str(video_path),
+                "label_file": label_name,
+                "video_name": video_name,
                 "video_exists": video_exists,
                 "num_events": len(labels.deliveries),
                 "num_false_positives": len(labels.false_positives) if labels.false_positives else 0,
@@ -1032,53 +1024,52 @@ def get_labeled_videos(labels_dir: Path, videos_dir: Path) -> list[dict]:
                 "total_frames": labels.total_frames,
             })
         except Exception as e:
-            print(f"Error loading {json_file}: {e}")
+            print(f"Error loading {label_name}: {e}")
             continue
 
     return sorted(videos, key=lambda v: v["video_name"])
 
 
-def get_previous_models(models_dir: Path) -> list[dict]:
+def get_previous_models(storage: StorageBackend) -> list[dict]:
     """Get list of previous training runs from models directory.
 
     Args:
-        models_dir: Directory containing saved models.
+        storage: Storage backend instance.
 
     Returns:
         List of dicts with model info.
     """
     models = []
-    if not models_dir.exists():
-        return models
 
-    for model_file in models_dir.glob("*.pt"):
+    for model_name in storage.list_models():
         try:
-            # Load checkpoint to get metadata
+            # Download to cache and load checkpoint to get metadata
             import torch
-            checkpoint = torch.load(model_file, map_location="cpu", weights_only=False)
+            local_model_path = storage.read_model(model_name)
+            checkpoint = torch.load(local_model_path, map_location="cpu", weights_only=False)
             metrics = checkpoint.get("metrics", {})
             domain = checkpoint.get("domain", "unknown")
             epoch = checkpoint.get("epoch", 0)
 
             models.append({
-                "path": model_file,
-                "name": model_file.stem,
+                "name": Path(model_name).stem,
+                "storage_key": model_name,
                 "domain": domain,
                 "epoch": epoch,
                 "val_f1": metrics.get("val_f1", 0),
                 "val_accuracy": metrics.get("val_accuracy", 0),
-                "modified": model_file.stat().st_mtime,
+                "modified": local_model_path.stat().st_mtime,
             })
         except Exception as e:
             # If we can't load it, just add basic info
             models.append({
-                "path": model_file,
-                "name": model_file.stem,
+                "name": Path(model_name).stem,
+                "storage_key": model_name,
                 "domain": "unknown",
                 "epoch": 0,
                 "val_f1": 0,
                 "val_accuracy": 0,
-                "modified": model_file.stat().st_mtime,
+                "modified": 0,
             })
 
     return sorted(models, key=lambda m: m["modified"], reverse=True)
@@ -1088,10 +1079,7 @@ def run_training_tab(domain: str = "cricket"):
     """Run the training tab for model training and management."""
     st.markdown(f"## Training {domain_badge(domain)}", unsafe_allow_html=True)
 
-    # Directories
-    labels_dir = Path("data/labels")
-    videos_dir = Path("data/raw")
-    models_dir = Path("models")
+    storage: StorageBackend = st.session_state.storage
 
     # Initialize session state
     if "training_selected_videos" not in st.session_state:
@@ -1107,7 +1095,7 @@ def run_training_tab(domain: str = "cricket"):
     st.markdown("### Training Videos")
 
     # Get labeled videos
-    labeled_videos = get_labeled_videos(labels_dir, videos_dir)
+    labeled_videos = get_labeled_videos(storage)
 
     if not labeled_videos:
         st.warning("No labeled videos found. Label some videos first in the LABELING tab.")
@@ -1346,8 +1334,8 @@ def run_training_tab(domain: str = "cricket"):
                     # Create training config
                     config = TrainingConfig(
                         domain=domain,
-                        labels_dir=str(labels_dir),
-                        videos_dir=str(videos_dir),
+                        labels_dir=str(storage.config.get_local_path("labels")),
+                        videos_dir=str(storage.config.get_local_path("videos")),
                         backbone=backbone,
                         num_epochs=num_epochs,
                         batch_size=batch_size,
@@ -1394,7 +1382,7 @@ def run_training_tab(domain: str = "cricket"):
     # ========== TRAINING HISTORY SECTION ==========
     st.markdown("### Previous Models")
 
-    previous_models = get_previous_models(models_dir)
+    previous_models = get_previous_models(storage)
 
     if not previous_models:
         st.info("No trained models found. Train a model to see it here.")
@@ -1417,10 +1405,9 @@ def run_training_tab(domain: str = "cricket"):
 
                 # Load model button
                 if st.button("Use this model", key=f"load_model_{model['name']}", use_container_width=False):
-                    # Copy to the default model path
-                    import shutil
-                    default_path = models_dir / "delivery_detector_best.pt"
-                    shutil.copy(model["path"], default_path)
+                    # Copy to the default model key
+                    local_model_path = storage.read_model(model["storage_key"])
+                    storage.write_model(local_model_path, "delivery_detector_best.pt")
                     st.success(f"Model loaded! Now available for detection in Analysis tab.")
 
 
@@ -1432,6 +1419,10 @@ def run_labeler():
     # Streamlit passes args after --
     args = parser.parse_args(sys.argv[1:]) if "--" not in sys.argv else parser.parse_args(sys.argv[sys.argv.index("--") + 1:])
     domain = args.domain
+
+    # Initialize storage backend (shared across tabs via session state)
+    if "storage" not in st.session_state:
+        st.session_state.storage = get_storage_backend()
 
     st.set_page_config(
         page_title=f"Prismata | {domain.title()}",
@@ -1470,6 +1461,8 @@ def run_labeling_tab(domain: str = "cricket"):
     if kb_action:
         st.query_params.clear()
 
+    storage: StorageBackend = st.session_state.storage
+
     # Sidebar for file selection and shortcuts help
     with st.sidebar:
         st.markdown("### Video Source")
@@ -1477,14 +1470,13 @@ def run_labeling_tab(domain: str = "cricket"):
         # Tab selection for video source with styled radio
         source_tab = st.radio(
             "Source",
-            ["Local File", "YouTube"],
+            ["Library", "YouTube"],
             horizontal=True,
             label_visibility="collapsed",
         )
 
-        video_path = None
-        labels_dir = st.text_input("Labels Directory", value="data/labels")
-        videos_dir = st.text_input("Videos Directory", value="data/raw")
+        video_path = None  # Local filesystem path for cv2/ffmpeg
+        selected_video_name = None  # Storage key/name for the video
 
         st.divider()
 
@@ -1568,43 +1560,48 @@ def run_labeling_tab(domain: str = "cricket"):
                         def update_progress(msg):
                             progress_placeholder.info(msg)
 
-                        with st.spinner("Downloading..."):
-                            downloaded_path = download_youtube_video(
-                                url=youtube_url,
-                                output_dir=Path(videos_dir),
-                                filename=custom_name if custom_name else None,
-                                quality=quality,
-                                start_time=start_time if start_time else None,
-                                end_time=end_time if end_time else None,
-                                progress_callback=update_progress,
-                            )
+                        # Download to a temp local dir first, then upload to storage
+                        import tempfile
+                        with tempfile.TemporaryDirectory() as tmp_dir:
+                            with st.spinner("Downloading..."):
+                                downloaded_path = download_youtube_video(
+                                    url=youtube_url,
+                                    output_dir=Path(tmp_dir),
+                                    filename=custom_name if custom_name else None,
+                                    quality=quality,
+                                    start_time=start_time if start_time else None,
+                                    end_time=end_time if end_time else None,
+                                    progress_callback=update_progress,
+                                )
 
-                        if downloaded_path:
-                            st.success(f"Downloaded: {downloaded_path.name}")
-
-                            # Split if enabled
-                            if split_enabled:
-                                with st.spinner("Splitting video..."):
-                                    chunks = split_video(
-                                        video_path=downloaded_path,
-                                        chunk_duration_minutes=chunk_duration,
-                                        progress_callback=update_progress,
-                                    )
-                                if chunks:
-                                    st.success(f"Created {len(chunks)} chunks")
-                                    if delete_original:
-                                        downloaded_path.unlink()
-                                        st.info(f"Deleted original: {downloaded_path.name}")
-                                    # Set first chunk as the downloaded video
-                                    st.session_state.downloaded_video = str(chunks[0])
+                            if downloaded_path:
+                                # Split if enabled
+                                if split_enabled:
+                                    with st.spinner("Splitting video..."):
+                                        chunks = split_video(
+                                            video_path=downloaded_path,
+                                            chunk_duration_minutes=chunk_duration,
+                                            output_dir=Path(tmp_dir),
+                                            progress_callback=update_progress,
+                                        )
+                                    if chunks:
+                                        # Upload all chunks to storage
+                                        for chunk_path in chunks:
+                                            storage.write_video(chunk_path, chunk_path.name)
+                                        st.success(f"Uploaded {len(chunks)} chunks")
+                                        if not delete_original:
+                                            storage.write_video(downloaded_path, downloaded_path.name)
+                                        st.session_state.downloaded_video = chunks[0].name
+                                    else:
+                                        st.warning("Splitting failed, uploading original file")
+                                        storage.write_video(downloaded_path, downloaded_path.name)
+                                        st.session_state.downloaded_video = downloaded_path.name
                                 else:
-                                    st.warning("Splitting failed, keeping original file")
-                                    st.session_state.downloaded_video = str(downloaded_path)
+                                    storage.write_video(downloaded_path, downloaded_path.name)
+                                    st.session_state.downloaded_video = downloaded_path.name
+                                st.rerun()
                             else:
-                                st.session_state.downloaded_video = str(downloaded_path)
-                            st.rerun()
-                        else:
-                            st.error("Download failed. Check the URL and try again.")
+                                st.error("Download failed. Check the URL and try again.")
                 else:
                     st.error("Could not fetch video info. Check the URL.")
             elif youtube_url:
@@ -1614,46 +1611,47 @@ def run_labeling_tab(domain: str = "cricket"):
             if "downloaded_video" in st.session_state:
                 st.divider()
                 st.caption("Recently downloaded:")
-                video_path = st.session_state.downloaded_video
-                st.code(video_path, language=None)
+                selected_video_name = st.session_state.downloaded_video
+                st.code(selected_video_name, language=None)
                 if st.button("Load this video", use_container_width=True):
-                    pass  # video_path is already set
+                    pass  # selected_video_name is already set
 
-        else:  # Local File
-            st.markdown("### Local Video")
-            video_path = st.text_input("Video Path", placeholder="/path/to/video.mp4", label_visibility="collapsed")
+        else:  # Library
+            st.markdown("### Video Library")
 
-            # List available videos in videos_dir
-            videos_path = Path(videos_dir)
-            if videos_path.exists():
-                video_files = list(videos_path.glob("*.mp4")) + list(videos_path.glob("*.mov"))
-                if video_files:
-                    st.caption(f"Videos in {videos_dir}:")
-                    selected = st.selectbox(
-                        "Select video",
-                        [""] + [f.name for f in video_files],
-                        format_func=lambda x: "Choose..." if x == "" else x,
-                        label_visibility="collapsed",
-                    )
-                    if selected:
-                        video_path = str(videos_path / selected)
+            # List available videos from storage
+            video_names = storage.list_videos(pattern="*.mp4,*.mov")
+            if video_names:
+                selected = st.selectbox(
+                    "Select video",
+                    [""] + video_names,
+                    format_func=lambda x: "Choose..." if x == "" else x,
+                    label_visibility="collapsed",
+                )
+                if selected:
+                    selected_video_name = selected
+            else:
+                st.info("No videos found in storage.")
 
-        # Validate video path
+        # Validate and load video metadata
         metadata = None
-        if video_path and Path(video_path).exists():
+        if selected_video_name:
             try:
+                video_path = str(storage.read_video(selected_video_name))
                 metadata = get_video_metadata(video_path)
                 st.divider()
                 st.markdown("### Video Info")
-                st.markdown(f"**{metadata.path.name}**")
+                st.markdown(f"**{selected_video_name}**")
                 st.caption(f"{metadata.width}x{metadata.height} | {metadata.fps:.1f} fps")
                 st.caption(f"{metadata.duration_str} | {metadata.total_frames} frames")
+            except FileNotFoundError:
+                st.warning("Video file not found in storage")
+                video_path = None
+                selected_video_name = None
             except Exception as e:
                 st.error(f"Error loading video: {e}")
                 video_path = None
-        elif video_path:
-            st.warning("Video file not found")
-            video_path = None
+                selected_video_name = None
 
         st.divider()
 
@@ -1678,9 +1676,8 @@ def run_labeling_tab(domain: str = "cricket"):
         col1, col2 = st.columns(2)
         with col1:
             st.markdown("""
-            ### Local File
-            1. Enter a video path, or
-            2. Select from videos in your data directory
+            ### Video Library
+            Select from videos in storage
             """)
         with col2:
             st.markdown("""
@@ -1693,26 +1690,25 @@ def run_labeling_tab(domain: str = "cricket"):
         return
 
     # Initialize session state
-    if "labels" not in st.session_state or st.session_state.get("current_video") != video_path:
-        labels_path = Path(labels_dir) / f"{Path(video_path).stem}.json"
-        if labels_path.exists():
-            st.session_state.labels = VideoLabels.load(labels_path)
+    labels_key = f"{Path(selected_video_name).stem}.json"
+    if "labels" not in st.session_state or st.session_state.get("current_video") != selected_video_name:
+        if storage.labels_exist(labels_key):
+            st.session_state.labels = VideoLabels.from_dict(storage.read_labels(labels_key))
             st.sidebar.success("Loaded existing labels")
         else:
             st.session_state.labels = VideoLabels.from_metadata(metadata)
-        st.session_state.current_video = video_path
+        st.session_state.current_video = selected_video_name
         st.session_state.current_frame = 0
         st.session_state.marking_start = None
         st.session_state.status_message = None
 
     labels: VideoLabels = st.session_state.labels
     current_frame = st.session_state.current_frame
-    labels_path = Path(labels_dir) / f"{Path(video_path).stem}.json"
 
     def auto_save():
         """Auto-save labels after modifications."""
-        labels.save(labels_path)
-        st.session_state.status_message = f"Auto-saved to {labels_path}"
+        storage.write_labels(labels.to_dict(), labels_key)
+        st.session_state.status_message = f"Auto-saved labels"
 
     # Process keyboard action
     if kb_action:
@@ -1748,9 +1744,8 @@ def run_labeling_tab(domain: str = "cricket"):
                 st.session_state.marking_start = None
                 st.session_state.status_message = "Marking cancelled"
         elif kb_action == "save":
-            labels_path = Path(labels_dir) / f"{Path(video_path).stem}.json"
-            labels.save(labels_path)
-            st.session_state.status_message = f"Saved to {labels_path}"
+            storage.write_labels(labels.to_dict(), labels_key)
+            st.session_state.status_message = "Labels saved"
         # Rerun to apply changes
         st.rerun()
 
@@ -1824,7 +1819,9 @@ def run_labeling_tab(domain: str = "cricket"):
 
         if view_mode == "Video Playback":
             # Native HTML5 video player for smooth playback
-            st.video(video_path)
+            # Use presigned URL for S3 streaming, local path for local storage
+            video_url = storage.get_video_url(selected_video_name)
+            st.video(video_url)
             st.caption("Use the video controls above to play. Switch to Frame View to label specific frames.")
         else:
             # Frame navigation slider with purple accent
@@ -1910,9 +1907,8 @@ def run_labeling_tab(domain: str = "cricket"):
 
         with mark_cols[3]:
             if st.button("Save", type="secondary", use_container_width=True, help="Ctrl+S"):
-                labels_path = Path(labels_dir) / f"{Path(video_path).stem}.json"
-                labels.save(labels_path)
-                st.session_state.status_message = f"Saved to {labels_path}"
+                storage.write_labels(labels.to_dict(), labels_key)
+                st.session_state.status_message = "Labels saved"
                 st.rerun()
 
     with col2:
