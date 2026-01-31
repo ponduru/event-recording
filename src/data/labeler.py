@@ -652,112 +652,104 @@ def run_analysis_tab(domain: str = "cricket"):
 
         try:
             import time
-            from src.inference.predictor import EventPredictor
+            import tempfile
+            import os
 
-            # Create progress UI elements
-            progress_container = st.container()
-            with progress_container:
-                progress_bar = st.progress(0)
-                progress_info = st.empty()
-                progress_info.markdown("**Initializing model...**")
+            progress_info = st.empty()
+            progress_info.markdown("**Downloading model and video...**")
 
-            # Live results container
-            live_header = st.empty()
-            live_container = st.container()
-
-            start_time = time.time()
-            live_events = []
-
-            # Progress callback for the predictor
-            def update_progress(current, total, status):
-                progress_pct = current / total
-                progress_bar.progress(progress_pct)
-
-                elapsed = time.time() - start_time
-                if current > 0:
-                    estimated_total = elapsed / progress_pct
-                    remaining = estimated_total - elapsed
-                    remaining_str = f"{int(remaining)}s remaining" if remaining > 0 else "Almost done..."
-                else:
-                    remaining_str = "Calculating..."
-
-                progress_info.markdown(
-                    f"**{int(progress_pct * 100)}%** complete | {remaining_str}  \n"
-                    f"<span style='color: #A1A1AA; font-size: 0.85rem;'>{status}</span>",
-                    unsafe_allow_html=True
-                )
-
-            # Event callback for live updates
-            def on_event(event):
-                live_events.append(event)
-                cnt = len(live_events)
-                live_header.markdown(f"### Live Detections ({cnt})")
-
-                with live_container:
-                    # Create a card for this event
-                    start_min = int(event.start_time // 60)
-                    start_sec = int(event.start_time % 60)
-                    conf_pct = int(event.confidence * 100)
-
-                    st.info(f"**Event #{cnt}**: {start_min}:{start_sec:02d} (Confidence: {conf_pct}%)")
-
-            # Load model with speed settings — download to cache if S3
-            progress_info.markdown("**Loading model...**")
+            # Download model and video to local cache
             local_model_path = storage.read_model(model_name)
-            predictor = EventPredictor.from_checkpoint(
-                str(local_model_path),
-                target_fps=target_fps,
-                stride=stride,
-                batch_size=batch_size,
-                num_workers=0,
-            )
-
-            # Download video to local cache for cv2/ffmpeg processing
             local_video_path = storage.read_video(selected_video)
 
-            # Run detection with progress
-            result = predictor.predict_video(
-                str(local_video_path),
-                threshold=threshold,
-                buffer_seconds=2.0,
-                progress_callback=update_progress,
-                event_callback=on_event,
+            progress_info.markdown("**Running detection in background process...**")
+
+            # Run detection in a subprocess to isolate memory usage.
+            # If PyTorch OOMs, the subprocess dies but Streamlit survives.
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as tmp:
+                output_path = tmp.name
+
+            detect_script = f"""
+import json, sys, os
+os.environ['OMP_NUM_THREADS'] = '1'
+os.environ['MKL_NUM_THREADS'] = '1'
+import time
+start = time.time()
+from src.inference.predictor import EventPredictor
+predictor = EventPredictor.from_checkpoint(
+    "{local_model_path}",
+    target_fps={target_fps},
+    stride={stride},
+    batch_size={batch_size},
+    num_workers=0,
+)
+result = predictor.predict_video(
+    "{local_video_path}",
+    threshold={threshold},
+    buffer_seconds=2.0,
+)
+elapsed = time.time() - start
+data = {{
+    "deliveries": [
+        {{
+            "id": int(d.id),
+            "start_time": float(d.start_time),
+            "end_time": float(d.end_time),
+            "confidence": float(d.confidence),
+            "status": "pending",
+        }}
+        for d in result.events
+    ],
+    "video_path": "{selected_video}",
+    "fps": float(result.fps),
+    "threshold": float({threshold}),
+    "detected_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+    "elapsed": elapsed,
+}}
+with open("{output_path}", "w") as f:
+    json.dump(data, f)
+"""
+            proc = subprocess.run(
+                [sys.executable, "-c", detect_script],
+                capture_output=True,
+                text=True,
+                timeout=1800,  # 30 min timeout
             )
 
-            # Complete
-            elapsed = time.time() - start_time
-            progress_bar.progress(1.0)
-            progress_info.markdown(
-                f"**100%** complete | Finished in {elapsed:.1f}s  \n"
-                f"<span style='color: #10B981;'>Detection complete!</span>",
-                unsafe_allow_html=True
-            )
+            if proc.returncode != 0:
+                st.session_state.detection_running = False
+                stderr = proc.stderr[-500:] if proc.stderr else "No error output"
+                if proc.returncode == -9 or "Killed" in stderr or "oom" in stderr.lower():
+                    st.error("Detection ran out of memory. Try reducing batch size or video length.")
+                else:
+                    st.error(f"Detection failed (exit code {proc.returncode})")
+                with st.expander("Error details"):
+                    st.code(stderr)
+                try:
+                    os.unlink(output_path)
+                except OSError:
+                    pass
+                return
 
-            # Store in session state (convert numpy types to Python native for JSON serialization)
-            detection_data = {
-                "deliveries": [
-                    {
-                        "id": int(d.id),
-                        "start_time": float(d.start_time),
-                        "end_time": float(d.end_time),
-                        "confidence": float(d.confidence),
-                        "status": "pending",  # pending, approved, rejected
-                    }
-                    for d in result.events
-                ],
-                "video_path": selected_video,
-                "fps": float(result.fps),
-                "threshold": float(threshold),
-                "detected_at": time.strftime("%Y-%m-%d %H:%M:%S"),
-            }
+            # Load results from subprocess output
+            with open(output_path) as f:
+                detection_data = json.load(f)
+            os.unlink(output_path)
+
+            elapsed = detection_data.pop("elapsed", 0)
             st.session_state[detection_key] = detection_data
 
             # Save to storage for persistence
             save_detections(storage, selected_video, detection_data)
 
             st.session_state.detection_running = False
-            st.success(f"Found {len(result.events)} events! Results saved.")
+            num_events = len(detection_data["deliveries"])
+            st.success(f"Found {num_events} events in {elapsed:.1f}s! Results saved.")
             st.rerun()
+        except subprocess.TimeoutExpired:
+            st.session_state.detection_running = False
+            st.error("Detection timed out (30 min limit).")
+            return
         except Exception as e:
             st.session_state.detection_running = False
             import traceback

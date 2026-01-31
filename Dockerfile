@@ -57,6 +57,12 @@ ENV STREAMLIT_SERVER_ADDRESS=0.0.0.0
 ENV STREAMLIT_SERVER_HEADLESS=true
 ENV STREAMLIT_BROWSER_GATHER_USAGE_STATS=false
 
+# Reduce PyTorch memory footprint for small instances
+ENV OMP_NUM_THREADS=1
+ENV MKL_NUM_THREADS=1
+ENV PYTORCH_NO_CUDA_MEMORY_CACHING=1
+ENV MALLOC_TRIM_THRESHOLD_=65536
+
 # Health check
 HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
     CMD curl -f http://localhost:8501/_stcore/health || exit 1
