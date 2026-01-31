@@ -17,7 +17,7 @@ COPY src ./src
 
 # Install dependencies
 RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir .[aws]
+    pip install --no-cache-dir .[aws,labeling,db]
 
 
 # Production stage
