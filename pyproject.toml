@@ -60,6 +60,7 @@ db = [
 ]
 onnx = [
     "onnxruntime>=1.16.0",
+    "onnx>=1.14.0",
 ]
 gpu = [
     "nvidia-ml-py>=12.0.0",
