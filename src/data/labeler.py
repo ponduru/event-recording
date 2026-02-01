@@ -664,12 +664,12 @@ def run_analysis_tab(domain: str = "cricket"):
 
             # Try to download ONNX model from storage if available
             onnx_model_name = model_name.replace(".pt", ".onnx")
-            onnx_model_path = Path(str(local_model_path)).with_suffix(".onnx")
+            onnx_model_path = None
             use_onnx = False
             if storage.exists(onnx_model_name, "models"):
                 try:
-                    storage.read_model(onnx_model_name)
-                    use_onnx = onnx_model_path.exists()
+                    onnx_model_path = storage.read_model(onnx_model_name)
+                    use_onnx = Path(str(onnx_model_path)).exists()
                 except Exception:
                     pass
 
