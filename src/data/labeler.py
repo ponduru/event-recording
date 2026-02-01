@@ -549,7 +549,16 @@ def run_analysis_tab(domain: str = "cricket"):
                 else:
                     video_options.append(vname)
 
-            selected_option = st.selectbox("Select Video", video_options, key="analysis_video")
+            # Restore previously selected video after rerun
+            default_index = 0
+            preserved = st.session_state.get("_analysis_video_selected")
+            if preserved:
+                for i, opt in enumerate(video_options):
+                    if opt.startswith(preserved):
+                        default_index = i
+                        break
+
+            selected_option = st.selectbox("Select Video", video_options, index=default_index, key="analysis_video")
 
             if selected_option == "Select a video...":
                 st.info("Select a video to analyze")
@@ -802,9 +811,8 @@ with open("{output_path}", "w") as f:
             num_events = len(detection_data["deliveries"])
             runtime_label = "ONNX" if runtime == "onnx" else "PyTorch"
             st.success(f"Found {num_events} events in {elapsed:.1f}s ({runtime_label})! Results saved.")
-            # Preserve video selection across rerun — the option label
-            # changes after detection (adds "[N detections]" suffix)
-            st.session_state.analysis_video = f"{selected_video} [{num_events} detections]"
+            # Preserve video selection across rerun
+            st.session_state._analysis_video_selected = selected_video
             st.rerun()
         except subprocess.TimeoutExpired:
             st.session_state.detection_running = False
