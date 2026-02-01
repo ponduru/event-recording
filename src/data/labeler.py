@@ -528,8 +528,6 @@ def get_detection_status(storage: StorageBackend, video_name: str) -> Optional[d
 
 def run_analysis_tab(domain: str = "cricket"):
     """Run the analysis tab for reviewing model detections."""
-    st.markdown(f"## Analysis {domain_badge(domain)}", unsafe_allow_html=True)
-
     storage: StorageBackend = st.session_state.storage
 
     # Settings in a card-like container
@@ -1059,8 +1057,6 @@ with open("{output_path}", "w") as f:
 
 def run_reviewed_tab(domain: str = "cricket"):
     """Run the reviewed/analyzed videos tab for reviewing past detections."""
-    st.markdown(f"## Analyzed Videos {domain_badge(domain)}", unsafe_allow_html=True)
-
     storage: StorageBackend = st.session_state.storage
     video_names = storage.list_videos(pattern="*.mp4,*.mov")
 
@@ -1412,8 +1408,6 @@ def get_previous_models(storage: StorageBackend) -> list[dict]:
 
 def run_training_tab(domain: str = "cricket"):
     """Run the training tab for model training and management."""
-    st.markdown(f"## Training {domain_badge(domain)}", unsafe_allow_html=True)
-
     storage: StorageBackend = st.session_state.storage
 
     # Initialize session state
@@ -1789,9 +1783,15 @@ def run_labeler():
     # Inject custom theme CSS
     inject_theme()
 
-    # Header with gradient title and domain badge
-    styled_header("Prismata", domain)
-    st.caption("Multi-domain video event detection")
+    # Compact header
+    st.markdown(
+        f'<div style="display:flex;align-items:baseline;gap:0.6rem;margin-bottom:0.75rem;">'
+        f'<span style="font-size:1.2rem;font-weight:600;letter-spacing:-0.01em;color:{COLORS["text_primary"]};">Prismata</span>'
+        f'{domain_badge(domain)}'
+        f'<span style="margin-left:auto;color:{COLORS["text_muted"]};font-size:0.85rem;">Video event detection</span>'
+        f'</div>',
+        unsafe_allow_html=True,
+    )
 
     # Main tabs with cleaner styling
     tab1, tab2, tab4, tab3 = st.tabs(["LABELING", "ANALYSIS", "REVIEWED", "TRAINING"])

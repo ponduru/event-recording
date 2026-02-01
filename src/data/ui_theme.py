@@ -62,7 +62,7 @@ def get_spotify_css() -> str:
 
     /* Remove default Streamlit padding */
     .block-container {{
-        padding-top: 2rem;
+        padding-top: 1rem;
         padding-bottom: 2rem;
     }}
 
@@ -80,29 +80,30 @@ def get_spotify_css() -> str:
     }}
 
     h1 {{
-        background: linear-gradient(135deg, {COLORS["primary"]} 0%, {COLORS["pink"]} 100%) !important;
-        -webkit-background-clip: text !important;
-        -webkit-text-fill-color: transparent !important;
-        background-clip: text !important;
-        font-size: 2.5rem !important;
-        font-weight: 800 !important;
+        color: {COLORS["text_primary"]} !important;
+        font-size: 2rem !important;
+        font-weight: 700 !important;
     }}
 
     h2 {{
-        font-size: 1.75rem !important;
+        font-size: 1.4rem !important;
         color: {COLORS["text_primary"]} !important;
+        margin-top: 0.5rem !important;
+        margin-bottom: 0.5rem !important;
     }}
 
     h3 {{
-        font-size: 1.25rem !important;
+        font-size: 1.1rem !important;
         color: {COLORS["text_primary"]} !important;
+        margin-top: 0.4rem !important;
+        margin-bottom: 0.4rem !important;
     }}
 
     /* Paragraphs and text */
     p, .stMarkdown p {{
         color: {COLORS["text_primary"]} !important;
-        font-size: 0.95rem !important;
-        line-height: 1.6 !important;
+        font-size: 0.9rem !important;
+        line-height: 1.5 !important;
     }}
 
     /* Caption/secondary text */
@@ -373,7 +374,8 @@ def get_spotify_css() -> str:
         color: {COLORS["text_secondary"]} !important;
         font-weight: 600 !important;
         font-family: 'Inter', sans-serif !important;
-        padding: 0.5rem 1.5rem !important;
+        padding: 0.4rem 1.2rem !important;
+        font-size: 0.8rem !important;
     }}
 
     .stTabs [data-baseweb="tab"]:hover {{
@@ -400,8 +402,8 @@ def get_spotify_css() -> str:
         background-color: {COLORS["bg_card"]} !important;
         border: 1px solid {COLORS["border"]} !important;
         border-left: 3px solid {COLORS["primary"]} !important;
-        border-radius: 12px !important;
-        padding: 1rem !important;
+        border-radius: 8px !important;
+        padding: 0.75rem !important;
     }}
 
     [data-testid="stMetricLabel"] {{
@@ -451,16 +453,17 @@ def get_spotify_css() -> str:
     /* ========== DOMAIN BADGE ========== */
     .domain-badge {{
         display: inline-block;
-        background: linear-gradient(135deg, {COLORS["primary"]} 0%, {COLORS["primary_active"]} 100%);
-        padding: 0.25rem 1rem;
-        border-radius: 500px;
+        background: rgba(139,92,246,0.15);
+        padding: 0.2rem 0.6rem;
+        border-radius: 4px;
         font-weight: 600;
-        font-size: 0.875rem;
+        font-size: 0.75rem;
         text-transform: uppercase;
-        letter-spacing: 0.1em;
-        margin-left: 1rem;
-        color: white !important;
+        letter-spacing: 0.05em;
+        margin-left: 0.5rem;
+        color: #A78BFA !important;
         vertical-align: middle;
+        border: 1px solid rgba(139,92,246,0.25);
     }}
 
     /* ========== RADIO BUTTONS ========== */
@@ -486,7 +489,7 @@ def get_spotify_css() -> str:
     /* ========== DIVIDERS ========== */
     hr, .stDivider {{
         border-color: {COLORS["border"]} !important;
-        margin: 1.5rem 0 !important;
+        margin: 0.75rem 0 !important;
     }}
 
     /* ========== ALERTS & INFO BOXES ========== */
