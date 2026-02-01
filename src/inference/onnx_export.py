@@ -48,7 +48,7 @@ def export_to_onnx(
     h, w = frame_size[1], frame_size[0]
     dummy_input = torch.randn(1, window_size, 3, h, w)
 
-    # Export
+    # Export using legacy ONNX exporter (doesn't require onnxscript)
     torch.onnx.export(
         model,
         dummy_input,
@@ -60,6 +60,7 @@ def export_to_onnx(
             "frames": {0: "batch_size"},
             "logits": {0: "batch_size"},
         },
+        dynamo=False,
     )
 
     print(f"Exported ONNX model to {output_path}")
