@@ -537,16 +537,14 @@ def run_analysis_tab(domain: str = "cricket"):
         col1, col2 = st.columns([2, 1])
 
         with col1:
-            # Video selection with detection status indicators
+            # Video selection — only show unanalyzed videos
             video_names = storage.list_videos(pattern="*.mp4,*.mov")
 
-            # Build video options with detection status
+            # Build video options (skip already-analyzed videos)
             video_options = ["Select a video..."]
             for vname in video_names:
                 status = get_detection_status(storage, vname)
-                if status:
-                    video_options.append(f"{vname} [{status['total']} detections]")
-                else:
+                if not status:
                     video_options.append(vname)
 
             # Restore previously selected video after rerun
@@ -560,13 +558,10 @@ def run_analysis_tab(domain: str = "cricket"):
 
             selected_option = st.selectbox("Select Video", video_options, index=default_index, key="analysis_video")
 
-            if selected_option == "Select a video...":
+            video_selected = selected_option != "Select a video..."
+            if not video_selected:
                 st.info("Select a video to analyze")
-                return
-
-            # Extract actual video name (remove detection count suffix if present)
-            if " [" in selected_option:
-                selected_video = selected_option.rsplit(" [", 1)[0]
+                selected_video = None
             else:
                 selected_video = selected_option
 
@@ -578,119 +573,120 @@ def run_analysis_tab(domain: str = "cricket"):
             if not storage.exists(model_name, "models"):
                 st.warning("No model found. Train a model first to run new detections.")
 
-    # Advanced settings in expander
-    with st.expander("Speed Settings", expanded=False):
-        speed_cols = st.columns(3)
-        with speed_cols[0]:
-            target_fps = st.select_slider(
-                "Target FPS",
-                options=[2.0, 5.0, 10.0, 15.0],
-                value=5.0,
-                help="Lower = faster but may miss short events"
-            )
-        with speed_cols[1]:
-            stride = st.select_slider(
-                "Stride",
-                options=[2, 4, 8, 16],
-                value=8,
-                help="Higher = faster but less precise"
-            )
-        with speed_cols[2]:
-            batch_size = st.select_slider(
-                "Batch Size",
-                options=[1, 2, 4, 8, 16],
-                value=4,
-                help="Lower = less memory; higher = faster"
-            )
+    if video_selected:
+        # Advanced settings in expander
+        with st.expander("Speed Settings", expanded=False):
+            speed_cols = st.columns(3)
+            with speed_cols[0]:
+                target_fps = st.select_slider(
+                    "Target FPS",
+                    options=[2.0, 5.0, 10.0, 15.0],
+                    value=5.0,
+                    help="Lower = faster but may miss short events"
+                )
+            with speed_cols[1]:
+                stride = st.select_slider(
+                    "Stride",
+                    options=[2, 4, 8, 16],
+                    value=8,
+                    help="Higher = faster but less precise"
+                )
+            with speed_cols[2]:
+                batch_size = st.select_slider(
+                    "Batch Size",
+                    options=[1, 2, 4, 8, 16],
+                    value=4,
+                    help="Lower = less memory; higher = faster"
+                )
 
-    # Detection state
-    detection_key = f"detections_{selected_video}_{threshold}"
+        # Detection state
+        detection_key = f"detections_{selected_video}_{threshold}"
 
-    # Try to load existing detections from storage if not in session state
-    if detection_key not in st.session_state:
-        existing_detections = load_detections(storage, selected_video)
-        if existing_detections:
-            st.session_state[detection_key] = existing_detections
+        # Try to load existing detections from storage if not in session state
+        if detection_key not in st.session_state:
+            existing_detections = load_detections(storage, selected_video)
+            if existing_detections:
+                st.session_state[detection_key] = existing_detections
 
-    # Show existing detections status and options
-    existing_status = get_detection_status(storage, selected_video)
+        # Show existing detections status and options
+        existing_status = get_detection_status(storage, selected_video)
 
-    # Track detection in progress
-    if "detection_running" not in st.session_state:
-        st.session_state.detection_running = False
-
-    col_btn1, col_btn2, col_info = st.columns([1, 1, 2])
-
-    with col_btn1:
-        if st.session_state.detection_running:
-            st.button("Detecting...", type="primary", use_container_width=True, disabled=True)
-        else:
-            run_new = st.button("Run Detection", type="primary", use_container_width=True)
-
-    with col_btn2:
-        if existing_status:
-            load_existing = st.button("Load Saved", type="secondary", use_container_width=True)
-            if load_existing:
-                saved_detections = load_detections(storage, selected_video)
-                if saved_detections:
-                    st.session_state[detection_key] = saved_detections
-                    st.success(f"Loaded {existing_status['total']} saved detections")
-                    st.rerun()
-
-    with col_info:
-        if existing_status:
-            st.caption(
-                f"Saved: {existing_status['total']} detections "
-                f"({existing_status['approved']} approved, "
-                f"{existing_status['pending']} pending, "
-                f"{existing_status['rejected']} rejected)"
-            )
-
-    # Run detection button with styled appearance
-    if not st.session_state.detection_running:
-        pass  # run_new already set by button above
-    else:
-        run_new = False
-
-    if run_new:
-        st.session_state.detection_running = True
-        if not storage.exists(model_name, "models"):
+        # Track detection in progress
+        if "detection_running" not in st.session_state:
             st.session_state.detection_running = False
-            st.error("No model found. Train a model first in the TRAINING tab.")
-            return
 
-        try:
-            import time
-            import tempfile
-            import os
+        col_btn1, col_btn2, col_info = st.columns([1, 1, 2])
 
-            progress_info = st.empty()
-            progress_info.markdown("**Downloading model and video...**")
+        with col_btn1:
+            if st.session_state.detection_running:
+                st.button("Detecting...", type="primary", use_container_width=True, disabled=True)
+            else:
+                run_new = st.button("Run Detection", type="primary", use_container_width=True)
 
-            # Download model and video to local cache
-            local_model_path = storage.read_model(model_name)
-            local_video_path = storage.read_video(selected_video)
+        with col_btn2:
+            if existing_status:
+                load_existing = st.button("Load Saved", type="secondary", use_container_width=True)
+                if load_existing:
+                    saved_detections = load_detections(storage, selected_video)
+                    if saved_detections:
+                        st.session_state[detection_key] = saved_detections
+                        st.success(f"Loaded {existing_status['total']} saved detections")
+                        st.rerun()
 
-            # Try to download ONNX model from storage if available
-            onnx_model_name = model_name.replace(".pt", ".onnx")
-            onnx_model_path = None
-            use_onnx = False
-            if storage.exists(onnx_model_name, "models"):
-                try:
-                    onnx_model_path = storage.read_model(onnx_model_name)
-                    use_onnx = Path(str(onnx_model_path)).exists()
-                except Exception:
-                    pass
+        with col_info:
+            if existing_status:
+                st.caption(
+                    f"Saved: {existing_status['total']} detections "
+                    f"({existing_status['approved']} approved, "
+                    f"{existing_status['pending']} pending, "
+                    f"{existing_status['rejected']} rejected)"
+                )
 
-            progress_info.markdown(f"**Running detection ({'ONNX' if use_onnx else 'PyTorch'})...**")
+        # Run detection button with styled appearance
+        if not st.session_state.detection_running:
+            pass  # run_new already set by button above
+        else:
+            run_new = False
 
-            # Run detection in a subprocess to isolate memory usage.
-            # If PyTorch OOMs, the subprocess dies but Streamlit survives.
-            with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as tmp:
-                output_path = tmp.name
+        if run_new:
+            st.session_state.detection_running = True
+            if not storage.exists(model_name, "models"):
+                st.session_state.detection_running = False
+                st.error("No model found. Train a model first in the TRAINING tab.")
+                return
 
-            if use_onnx:
-                detect_script = f"""
+            try:
+                import time
+                import tempfile
+                import os
+
+                progress_info = st.empty()
+                progress_info.markdown("**Downloading model and video...**")
+
+                # Download model and video to local cache
+                local_model_path = storage.read_model(model_name)
+                local_video_path = storage.read_video(selected_video)
+
+                # Try to download ONNX model from storage if available
+                onnx_model_name = model_name.replace(".pt", ".onnx")
+                onnx_model_path = None
+                use_onnx = False
+                if storage.exists(onnx_model_name, "models"):
+                    try:
+                        onnx_model_path = storage.read_model(onnx_model_name)
+                        use_onnx = Path(str(onnx_model_path)).exists()
+                    except Exception:
+                        pass
+
+                progress_info.markdown(f"**Running detection ({'ONNX' if use_onnx else 'PyTorch'})...**")
+
+                # Run detection in a subprocess to isolate memory usage.
+                # If PyTorch OOMs, the subprocess dies but Streamlit survives.
+                with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as tmp:
+                    output_path = tmp.name
+
+                if use_onnx:
+                    detect_script = f"""
 import json, sys, os
 os.environ['OMP_NUM_THREADS'] = '1'
 os.environ['MKL_NUM_THREADS'] = '1'
@@ -731,8 +727,8 @@ data = {{
 with open("{output_path}", "w") as f:
     json.dump(data, f)
 """
-            else:
-                detect_script = f"""
+                else:
+                    detect_script = f"""
 import json, sys, os
 os.environ['OMP_NUM_THREADS'] = '1'
 os.environ['MKL_NUM_THREADS'] = '1'
@@ -773,75 +769,375 @@ data = {{
 with open("{output_path}", "w") as f:
     json.dump(data, f)
 """
-            proc = subprocess.run(
-                [sys.executable, "-c", detect_script],
-                capture_output=True,
-                text=True,
-                timeout=1800,  # 30 min timeout
-            )
+                proc = subprocess.run(
+                    [sys.executable, "-c", detect_script],
+                    capture_output=True,
+                    text=True,
+                    timeout=1800,  # 30 min timeout
+                )
 
-            if proc.returncode != 0:
+                if proc.returncode != 0:
+                    st.session_state.detection_running = False
+                    stderr = proc.stderr[-500:] if proc.stderr else "No error output"
+                    if proc.returncode == -9 or "Killed" in stderr or "oom" in stderr.lower():
+                        st.error("Detection ran out of memory. Try reducing batch size or video length.")
+                    else:
+                        st.error(f"Detection failed (exit code {proc.returncode})")
+                    with st.expander("Error details"):
+                        st.code(stderr)
+                    try:
+                        os.unlink(output_path)
+                    except OSError:
+                        pass
+                    return
+
+                # Load results from subprocess output
+                with open(output_path) as f:
+                    detection_data = json.load(f)
+                os.unlink(output_path)
+
+                elapsed = detection_data.pop("elapsed", 0)
+                runtime = detection_data.pop("runtime", "pytorch")
+                st.session_state[detection_key] = detection_data
+
+                # Save to storage for persistence
+                save_detections(storage, selected_video, detection_data)
+
                 st.session_state.detection_running = False
-                stderr = proc.stderr[-500:] if proc.stderr else "No error output"
-                if proc.returncode == -9 or "Killed" in stderr or "oom" in stderr.lower():
-                    st.error("Detection ran out of memory. Try reducing batch size or video length.")
-                else:
-                    st.error(f"Detection failed (exit code {proc.returncode})")
+                num_events = len(detection_data["deliveries"])
+                runtime_label = "ONNX" if runtime == "onnx" else "PyTorch"
+                st.success(f"Found {num_events} events in {elapsed:.1f}s ({runtime_label})! Results saved.")
+                # Preserve video selection across rerun
+                st.session_state._analysis_video_selected = selected_video
+                st.rerun()
+            except subprocess.TimeoutExpired:
+                st.session_state.detection_running = False
+                st.error("Detection timed out (30 min limit).")
+                return
+            except Exception as e:
+                st.session_state.detection_running = False
+                import traceback
+                st.error(f"Detection failed: {e}")
                 with st.expander("Error details"):
-                    st.code(stderr)
-                try:
-                    os.unlink(output_path)
-                except OSError:
-                    pass
+                    st.code(traceback.format_exc())
                 return
 
-            # Load results from subprocess output
-            with open(output_path) as f:
-                detection_data = json.load(f)
-            os.unlink(output_path)
-
-            elapsed = detection_data.pop("elapsed", 0)
-            runtime = detection_data.pop("runtime", "pytorch")
-            st.session_state[detection_key] = detection_data
-
-            # Save to storage for persistence
-            save_detections(storage, selected_video, detection_data)
-
-            st.session_state.detection_running = False
-            num_events = len(detection_data["deliveries"])
-            runtime_label = "ONNX" if runtime == "onnx" else "PyTorch"
-            st.success(f"Found {num_events} events in {elapsed:.1f}s ({runtime_label})! Results saved.")
-            # Preserve video selection across rerun
-            st.session_state._analysis_video_selected = selected_video
-            st.rerun()
-        except subprocess.TimeoutExpired:
-            st.session_state.detection_running = False
-            st.error("Detection timed out (30 min limit).")
-            return
-        except Exception as e:
-            st.session_state.detection_running = False
-            import traceback
-            st.error(f"Detection failed: {e}")
-            with st.expander("Error details"):
-                st.code(traceback.format_exc())
+        # Show detections if available
+        if detection_key not in st.session_state:
+            st.info("Click 'Run Detection' to analyze the video")
             return
 
-    # Show detections if available
-    if detection_key not in st.session_state:
-        st.info("Click 'Run Detection' to analyze the video")
+        detections = st.session_state[detection_key]
+        deliveries = detections["deliveries"]
+        fps = detections["fps"]
+
+        if not deliveries:
+            st.warning("No deliveries detected. Try lowering the threshold.")
+            return
+
+        st.divider()
+
+        # Summary stats with custom metric cards
+        pending = sum(1 for d in deliveries if d["status"] == "pending")
+        approved = sum(1 for d in deliveries if d["status"] == "approved")
+        rejected = sum(1 for d in deliveries if d["status"] == "rejected")
+
+        stat_cols = st.columns(4)
+        with stat_cols[0]:
+            st.metric("Total", len(deliveries))
+        with stat_cols[1]:
+            st.metric("Pending", pending)
+        with stat_cols[2]:
+            st.metric("Approved", approved)
+        with stat_cols[3]:
+            st.metric("Rejected", rejected)
+
+        st.divider()
+
+        # Delivery list and viewer
+        list_col, viewer_col = st.columns([1, 2])
+
+        with list_col:
+            st.markdown("### Detections")
+
+            # Filter options
+            filter_status = st.radio(
+                "Filter",
+                ["All", "Pending", "Approved", "Rejected"],
+                horizontal=True,
+                key="analysis_filter",
+            )
+
+            # Filter deliveries
+            filtered = deliveries
+            if filter_status == "Pending":
+                filtered = [d for d in deliveries if d["status"] == "pending"]
+            elif filter_status == "Approved":
+                filtered = [d for d in deliveries if d["status"] == "approved"]
+            elif filter_status == "Rejected":
+                filtered = [d for d in deliveries if d["status"] == "rejected"]
+
+            # Initialize selected delivery
+            if "selected_delivery_idx" not in st.session_state:
+                st.session_state.selected_delivery_idx = 0
+
+            # Delivery list as styled buttons
+            for i, delivery in enumerate(filtered):
+                # Find actual index in original list
+                actual_idx = deliveries.index(delivery)
+
+                status_icon = {
+                    "pending": "PENDING",
+                    "approved": "APPROVED",
+                    "rejected": "REJECTED",
+                }.get(delivery["status"], "PENDING")
+
+                start_min = int(delivery["start_time"] // 60)
+                start_sec = int(delivery["start_time"] % 60)
+                conf_pct = int(delivery["confidence"] * 100)
+
+                btn_label = f"#{i+1} | {start_min}:{start_sec:02d} | {conf_pct}%"
+
+                is_selected = actual_idx == st.session_state.selected_delivery_idx
+
+                if st.button(
+                    btn_label,
+                    key=f"sel_{actual_idx}",
+                    use_container_width=True,
+                    type="primary" if is_selected else "secondary",
+                ):
+                    st.session_state.selected_delivery_idx = actual_idx
+                    st.rerun()
+
+        with viewer_col:
+            st.markdown(f"### {domain.title()} Viewer")
+
+            if st.session_state.selected_delivery_idx < len(deliveries):
+                selected = deliveries[st.session_state.selected_delivery_idx]
+
+                # Display info with metrics
+                info_cols = st.columns(3)
+                with info_cols[0]:
+                    st.metric("Time", f"{selected['start_time']:.1f}s - {selected['end_time']:.1f}s")
+                with info_cols[1]:
+                    st.metric("Confidence", f"{selected['confidence']*100:.1f}%")
+                with info_cols[2]:
+                    # Status badge
+                    st.markdown(f"**Status:** {status_badge(selected['status'])}", unsafe_allow_html=True)
+
+                # Video clip player
+                start_time = max(0, selected["start_time"] - 2)
+
+                # Use ffmpeg to extract clip to temp file
+                import tempfile
+
+                clip_duration = (selected["end_time"] - selected["start_time"]) + 4
+
+                # Download video to local cache for ffmpeg processing
+                local_video_path = storage.read_video(selected_video)
+
+                with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as tmp:
+                    tmp_path = tmp.name
+
+                try:
+                    subprocess.run([
+                        "ffmpeg", "-y", "-ss", str(start_time), "-i", str(local_video_path),
+                        "-t", str(clip_duration), "-c:v", "libx264", "-c:a", "aac",
+                        "-loglevel", "error", tmp_path
+                    ], check=True, capture_output=True)
+
+                    st.video(tmp_path)
+                except Exception as e:
+                    st.error(f"Could not extract clip: {e}")
+                finally:
+                    # Clean up temp file after a delay (Streamlit needs time to read it)
+                    pass
+
+                st.divider()
+
+                # Action buttons with custom styling
+                action_cols = st.columns(3)
+
+                with action_cols[0]:
+                    if st.button("Approve", type="primary", use_container_width=True,
+                               disabled=selected["status"] == "approved", key="approve_btn"):
+                        # Mark as approved and add to training labels
+                        selected["status"] = "approved"
+
+                        # Save detection status to storage
+                        save_detections(storage, selected_video, detections)
+
+                        # Add to labels file
+                        labels_key = f"{Path(selected_video).stem}.json"
+                        if storage.labels_exist(labels_key):
+                            labels = VideoLabels.from_dict(storage.read_labels(labels_key))
+                        else:
+                            local_video_path = storage.read_video(selected_video)
+                            from src.utils.video import get_video_metadata
+                            metadata = get_video_metadata(str(local_video_path))
+                            labels = VideoLabels.from_metadata(metadata)
+
+                        # Check if already exists (by time overlap)
+                        start_frame = int(selected["start_time"] * fps)
+                        end_frame = int(selected["end_time"] * fps)
+
+                        already_exists = any(
+                            abs(d.start_frame - start_frame) < fps * 2  # Within 2 seconds
+                            for d in labels.deliveries
+                        )
+
+                        if not already_exists:
+                            labels.add_delivery(start_frame, end_frame)
+                            storage.write_labels(labels.to_dict(), labels_key)
+                            st.success("Added to training set!")
+                        else:
+                            st.info("Already in training set")
+
+                        st.rerun()
+
+                with action_cols[1]:
+                    if st.button("Reject", type="secondary", use_container_width=True,
+                               disabled=selected["status"] == "rejected", key="reject_btn"):
+                        # Mark as rejected and add as false positive
+                        selected["status"] = "rejected"
+
+                        # Save detection status to storage
+                        save_detections(storage, selected_video, detections)
+
+                        # Add to labels file as false positive
+                        labels_key = f"{Path(selected_video).stem}.json"
+                        if storage.labels_exist(labels_key):
+                            labels = VideoLabels.from_dict(storage.read_labels(labels_key))
+                        else:
+                            local_video_path = storage.read_video(selected_video)
+                            from src.utils.video import get_video_metadata
+                            metadata = get_video_metadata(str(local_video_path))
+                            labels = VideoLabels.from_metadata(metadata)
+
+                        start_frame = int(selected["start_time"] * fps)
+                        end_frame = int(selected["end_time"] * fps)
+
+                        # Check if already exists
+                        already_exists = any(
+                            abs(fp.start_frame - start_frame) < fps * 2
+                            for fp in labels.false_positives
+                        )
+
+                        if not already_exists:
+                            labels.false_positives.append(FalsePositive(
+                                id=f"fp_{uuid.uuid4().hex[:8]}",
+                                start_frame=start_frame,
+                                end_frame=end_frame,
+                                notes="Rejected from analysis UI",
+                            ))
+                            storage.write_labels(labels.to_dict(), labels_key)
+                            st.success("Added as false positive for training!")
+                        else:
+                            st.info("Already marked as false positive")
+
+                        st.rerun()
+
+                with action_cols[2]:
+                    if st.button("Next", use_container_width=True, key="next_detection"):
+                        if st.session_state.selected_delivery_idx < len(deliveries) - 1:
+                            st.session_state.selected_delivery_idx += 1
+                            st.rerun()
+
+                # Navigation hints
+                st.caption("Approve = add to training positives | Reject = add to training negatives")
+
+        # Save progress button
+        st.divider()
+        save_cols = st.columns([3, 1])
+        with save_cols[1]:
+            if st.button("Save Progress", use_container_width=True, key="save_progress"):
+                # Save current detection state to storage
+                save_detections(storage, selected_video, detections)
+                st.success("Progress saved!")
+
+
+
+def run_reviewed_tab(domain: str = "cricket"):
+    """Run the reviewed/analyzed videos tab for reviewing past detections."""
+    st.markdown(f"## Analyzed Videos {domain_badge(domain)}", unsafe_allow_html=True)
+
+    storage: StorageBackend = st.session_state.storage
+    video_names = storage.list_videos(pattern="*.mp4,*.mov")
+
+    # Build list of analyzed videos
+    analyzed_videos = []
+    for vname in video_names:
+        status = get_detection_status(storage, vname)
+        if status:
+            analyzed_videos.append((vname, status))
+
+    if not analyzed_videos:
+        st.info("No videos have been analyzed yet. Use the Analysis tab to run detection on a video.")
         return
 
-    detections = st.session_state[detection_key]
+    # Video selector — only analyzed videos
+    video_options = ["Select a video..."]
+    for vname, status in analyzed_videos:
+        parts = [f"{status['total']} detections"]
+        if status["pending"]:
+            parts.append(f"{status['pending']} pending")
+        if status["approved"]:
+            parts.append(f"{status['approved']} approved")
+        if status["rejected"]:
+            parts.append(f"{status['rejected']} rejected")
+        suffix = parts[0] + (f" ({', '.join(parts[1:])})" if len(parts) > 1 else "")
+        video_options.append(f"{vname} — {suffix}")
+
+    # Restore selection across reruns
+    default_index = 0
+    preserved = st.session_state.get("_reviewed_video_selected")
+    if preserved:
+        for i, opt in enumerate(video_options):
+            if opt.startswith(preserved):
+                default_index = i
+                break
+
+    selected_option = st.selectbox("Select Analyzed Video", video_options, index=default_index, key="reviewed_video")
+
+    if selected_option == "Select a video...":
+        st.info("Select a video to review its detections.")
+        return
+
+    # Extract video name (before the " — ")
+    selected_video = selected_option.split(" — ", 1)[0]
+
+    # Mark Not Analyzed button
+    mark_col, spacer = st.columns([1, 3])
+    with mark_col:
+        if st.button("Mark Not Analyzed", type="secondary", use_container_width=True, key="reviewed_unanalyze"):
+            det_key = f"{Path(selected_video).stem}_detections.json"
+            storage.delete(det_key, "detections")
+            keys_to_remove = [k for k in st.session_state if k.startswith(f"detections_{selected_video}")]
+            for k in keys_to_remove:
+                del st.session_state[k]
+            if "_reviewed_video_selected" in st.session_state:
+                del st.session_state["_reviewed_video_selected"]
+            st.rerun()
+
+    # Load detections
+    detections = load_detections(storage, selected_video)
+    if not detections or "deliveries" not in detections:
+        st.warning("Could not load detections for this video.")
+        return
+
     deliveries = detections["deliveries"]
-    fps = detections["fps"]
+    fps = detections.get("fps", 30.0)
+
+    if detections.get("detected_at"):
+        st.caption(f"Detected at: {detections['detected_at']}")
 
     if not deliveries:
-        st.warning("No deliveries detected. Try lowering the threshold.")
+        st.warning("No deliveries in this detection file.")
         return
 
     st.divider()
 
-    # Summary stats with custom metric cards
+    # Summary stats
     pending = sum(1 for d in deliveries if d["status"] == "pending")
     approved = sum(1 for d in deliveries if d["status"] == "approved")
     rejected = sum(1 for d in deliveries if d["status"] == "rejected")
@@ -864,15 +1160,13 @@ with open("{output_path}", "w") as f:
     with list_col:
         st.markdown("### Detections")
 
-        # Filter options
         filter_status = st.radio(
             "Filter",
             ["All", "Pending", "Approved", "Rejected"],
             horizontal=True,
-            key="analysis_filter",
+            key="reviewed_filter",
         )
 
-        # Filter deliveries
         filtered = deliveries
         if filter_status == "Pending":
             filtered = [d for d in deliveries if d["status"] == "pending"]
@@ -881,63 +1175,45 @@ with open("{output_path}", "w") as f:
         elif filter_status == "Rejected":
             filtered = [d for d in deliveries if d["status"] == "rejected"]
 
-        # Initialize selected delivery
-        if "selected_delivery_idx" not in st.session_state:
-            st.session_state.selected_delivery_idx = 0
+        if "reviewed_delivery_idx" not in st.session_state:
+            st.session_state.reviewed_delivery_idx = 0
 
-        # Delivery list as styled buttons
         for i, delivery in enumerate(filtered):
-            # Find actual index in original list
             actual_idx = deliveries.index(delivery)
-
-            status_icon = {
-                "pending": "PENDING",
-                "approved": "APPROVED",
-                "rejected": "REJECTED",
-            }.get(delivery["status"], "PENDING")
-
             start_min = int(delivery["start_time"] // 60)
             start_sec = int(delivery["start_time"] % 60)
             conf_pct = int(delivery["confidence"] * 100)
-
             btn_label = f"#{i+1} | {start_min}:{start_sec:02d} | {conf_pct}%"
-
-            is_selected = actual_idx == st.session_state.selected_delivery_idx
+            is_selected = actual_idx == st.session_state.reviewed_delivery_idx
 
             if st.button(
                 btn_label,
-                key=f"sel_{actual_idx}",
+                key=f"rev_sel_{actual_idx}",
                 use_container_width=True,
                 type="primary" if is_selected else "secondary",
             ):
-                st.session_state.selected_delivery_idx = actual_idx
+                st.session_state.reviewed_delivery_idx = actual_idx
+                st.session_state._reviewed_video_selected = selected_video
                 st.rerun()
 
     with viewer_col:
         st.markdown(f"### {domain.title()} Viewer")
 
-        if st.session_state.selected_delivery_idx < len(deliveries):
-            selected = deliveries[st.session_state.selected_delivery_idx]
+        if st.session_state.reviewed_delivery_idx < len(deliveries):
+            selected = deliveries[st.session_state.reviewed_delivery_idx]
 
-            # Display info with metrics
             info_cols = st.columns(3)
             with info_cols[0]:
                 st.metric("Time", f"{selected['start_time']:.1f}s - {selected['end_time']:.1f}s")
             with info_cols[1]:
                 st.metric("Confidence", f"{selected['confidence']*100:.1f}%")
             with info_cols[2]:
-                # Status badge
                 st.markdown(f"**Status:** {status_badge(selected['status'])}", unsafe_allow_html=True)
 
             # Video clip player
             start_time = max(0, selected["start_time"] - 2)
-
-            # Use ffmpeg to extract clip to temp file
             import tempfile
-
             clip_duration = (selected["end_time"] - selected["start_time"]) + 4
-
-            # Download video to local cache for ffmpeg processing
             local_video_path = storage.read_video(selected_video)
 
             with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as tmp:
@@ -949,29 +1225,21 @@ with open("{output_path}", "w") as f:
                     "-t", str(clip_duration), "-c:v", "libx264", "-c:a", "aac",
                     "-loglevel", "error", tmp_path
                 ], check=True, capture_output=True)
-
                 st.video(tmp_path)
             except Exception as e:
                 st.error(f"Could not extract clip: {e}")
-            finally:
-                # Clean up temp file after a delay (Streamlit needs time to read it)
-                pass
 
             st.divider()
 
-            # Action buttons with custom styling
+            # Action buttons
             action_cols = st.columns(3)
 
             with action_cols[0]:
                 if st.button("Approve", type="primary", use_container_width=True,
-                           disabled=selected["status"] == "approved", key="approve_btn"):
-                    # Mark as approved and add to training labels
+                           disabled=selected["status"] == "approved", key="rev_approve_btn"):
                     selected["status"] = "approved"
-
-                    # Save detection status to storage
                     save_detections(storage, selected_video, detections)
 
-                    # Add to labels file
                     labels_key = f"{Path(selected_video).stem}.json"
                     if storage.labels_exist(labels_key):
                         labels = VideoLabels.from_dict(storage.read_labels(labels_key))
@@ -981,15 +1249,12 @@ with open("{output_path}", "w") as f:
                         metadata = get_video_metadata(str(local_video_path))
                         labels = VideoLabels.from_metadata(metadata)
 
-                    # Check if already exists (by time overlap)
                     start_frame = int(selected["start_time"] * fps)
                     end_frame = int(selected["end_time"] * fps)
-
                     already_exists = any(
-                        abs(d.start_frame - start_frame) < fps * 2  # Within 2 seconds
+                        abs(d.start_frame - start_frame) < fps * 2
                         for d in labels.deliveries
                     )
-
                     if not already_exists:
                         labels.add_delivery(start_frame, end_frame)
                         storage.write_labels(labels.to_dict(), labels_key)
@@ -997,18 +1262,15 @@ with open("{output_path}", "w") as f:
                     else:
                         st.info("Already in training set")
 
+                    st.session_state._reviewed_video_selected = selected_video
                     st.rerun()
 
             with action_cols[1]:
                 if st.button("Reject", type="secondary", use_container_width=True,
-                           disabled=selected["status"] == "rejected", key="reject_btn"):
-                    # Mark as rejected and add as false positive
+                           disabled=selected["status"] == "rejected", key="rev_reject_btn"):
                     selected["status"] = "rejected"
-
-                    # Save detection status to storage
                     save_detections(storage, selected_video, detections)
 
-                    # Add to labels file as false positive
                     labels_key = f"{Path(selected_video).stem}.json"
                     if storage.labels_exist(labels_key):
                         labels = VideoLabels.from_dict(storage.read_labels(labels_key))
@@ -1020,42 +1282,39 @@ with open("{output_path}", "w") as f:
 
                     start_frame = int(selected["start_time"] * fps)
                     end_frame = int(selected["end_time"] * fps)
-
-                    # Check if already exists
                     already_exists = any(
                         abs(fp.start_frame - start_frame) < fps * 2
                         for fp in labels.false_positives
                     )
-
                     if not already_exists:
                         labels.false_positives.append(FalsePositive(
                             id=f"fp_{uuid.uuid4().hex[:8]}",
                             start_frame=start_frame,
                             end_frame=end_frame,
-                            notes="Rejected from analysis UI",
+                            notes="Rejected from reviewed UI",
                         ))
                         storage.write_labels(labels.to_dict(), labels_key)
                         st.success("Added as false positive for training!")
                     else:
                         st.info("Already marked as false positive")
 
+                    st.session_state._reviewed_video_selected = selected_video
                     st.rerun()
 
             with action_cols[2]:
-                if st.button("Next", use_container_width=True, key="next_detection"):
-                    if st.session_state.selected_delivery_idx < len(deliveries) - 1:
-                        st.session_state.selected_delivery_idx += 1
+                if st.button("Next", use_container_width=True, key="rev_next_detection"):
+                    if st.session_state.reviewed_delivery_idx < len(deliveries) - 1:
+                        st.session_state.reviewed_delivery_idx += 1
+                        st.session_state._reviewed_video_selected = selected_video
                         st.rerun()
 
-            # Navigation hints
             st.caption("Approve = add to training positives | Reject = add to training negatives")
 
-    # Save progress button
+    # Save progress
     st.divider()
     save_cols = st.columns([3, 1])
     with save_cols[1]:
-        if st.button("Save Progress", use_container_width=True, key="save_progress"):
-            # Save current detection state to storage
+        if st.button("Save Progress", use_container_width=True, key="rev_save_progress"):
             save_detections(storage, selected_video, detections)
             st.success("Progress saved!")
 
@@ -1535,10 +1794,13 @@ def run_labeler():
     st.caption("Multi-domain video event detection")
 
     # Main tabs with cleaner styling
-    tab1, tab2, tab3 = st.tabs(["LABELING", "ANALYSIS", "TRAINING"])
+    tab1, tab2, tab4, tab3 = st.tabs(["LABELING", "ANALYSIS", "REVIEWED", "TRAINING"])
 
     with tab2:
         run_analysis_tab(domain)
+
+    with tab4:
+        run_reviewed_tab(domain)
 
     with tab3:
         run_training_tab(domain)
