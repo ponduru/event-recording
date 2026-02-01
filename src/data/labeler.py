@@ -802,6 +802,9 @@ with open("{output_path}", "w") as f:
             num_events = len(detection_data["deliveries"])
             runtime_label = "ONNX" if runtime == "onnx" else "PyTorch"
             st.success(f"Found {num_events} events in {elapsed:.1f}s ({runtime_label})! Results saved.")
+            # Preserve video selection across rerun — the option label
+            # changes after detection (adds "[N detections]" suffix)
+            st.session_state.analysis_video = f"{selected_video} [{num_events} detections]"
             st.rerun()
         except subprocess.TimeoutExpired:
             st.session_state.detection_running = False
