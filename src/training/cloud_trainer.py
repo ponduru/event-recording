@@ -322,6 +322,19 @@ class CloudTrainer:
             s3_key = ""
 
             if model_path.exists():
+                # Auto-export to ONNX for efficient inference
+                try:
+                    from src.inference.onnx_export import export_to_onnx
+                    onnx_path = str(model_path).replace(".pt", ".onnx")
+                    export_to_onnx(str(model_path), onnx_path)
+                    print(f"Auto-exported ONNX model to {onnx_path}")
+                    # Upload ONNX model too
+                    if self.config.upload_checkpoints and self.storage:
+                        onnx_s3_key = self._upload_model(Path(onnx_path))
+                        print(f"ONNX model uploaded to S3: {onnx_s3_key}")
+                except Exception as e:
+                    print(f"Warning: ONNX export failed: {e}")
+
                 if self.config.upload_checkpoints and self.storage:
                     s3_key = self._upload_model(model_path)
                     print(f"Model uploaded to S3: {s3_key}")

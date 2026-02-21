@@ -417,6 +417,17 @@ class Trainer:
             domain=self.config.domain,
         )
 
+        # Auto-export best model to ONNX for efficient inference
+        best_path = self.output_dir / f"{self.config.experiment_name}_best.pt"
+        if best_path.exists():
+            try:
+                from src.inference.onnx_export import export_to_onnx
+                onnx_path = str(best_path).replace(".pt", ".onnx")
+                export_to_onnx(str(best_path), onnx_path)
+                print(f"  Auto-exported ONNX model to {onnx_path}")
+            except Exception as e:
+                print(f"  Warning: ONNX export failed: {e}")
+
         if self.wandb_run:
             self.wandb_run.finish()
 
