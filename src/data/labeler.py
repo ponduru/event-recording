@@ -1406,6 +1406,280 @@ def get_previous_models(storage: StorageBackend) -> list[dict]:
     return sorted(models, key=lambda m: m["modified"], reverse=True)
 
 
+def run_outcomes_tab(domain: str = "cricket"):
+    """Run the outcomes labeling tab for classifying delivery results."""
+    storage: StorageBackend = st.session_state.storage
+
+    # Outcome options for cricket
+    OUTCOMES = {
+        "0": "Dot Ball",
+        "1": "1 Run",
+        "2": "2 Runs",
+        "3": "3 Runs",
+        "4": "Four",
+        "6": "Six",
+        "W": "Wicket",
+    }
+
+    # Get videos with approved detections
+    video_names = storage.list_videos(pattern="*.mp4,*.mov")
+    videos_with_outcomes = []
+
+    for vname in video_names:
+        status = get_detection_status(storage, vname)
+        if status and status.get("approved", 0) > 0:
+            # Load detections to check outcome labels
+            detections = load_detections(storage, vname)
+            if detections:
+                approved = [d for d in detections.get("deliveries", []) if d.get("status") == "approved"]
+                labeled = sum(1 for d in approved if d.get("outcome"))
+                videos_with_outcomes.append({
+                    "name": vname,
+                    "approved": len(approved),
+                    "labeled": labeled,
+                    "unlabeled": len(approved) - labeled,
+                })
+
+    if not videos_with_outcomes:
+        st.info("No approved deliveries to label. First approve some detections in the Reviewed tab.")
+        return
+
+    # Video selector
+    video_options = ["Select a video..."]
+    for v in videos_with_outcomes:
+        label = f"{v['name']} — {v['approved']} approved"
+        if v['unlabeled'] > 0:
+            label += f" ({v['unlabeled']} unlabeled)"
+        else:
+            label += " (all labeled ✓)"
+        video_options.append(label)
+
+    default_index = 0
+    preserved = st.session_state.get("_outcomes_video_selected")
+    if preserved:
+        for i, opt in enumerate(video_options):
+            if opt.startswith(preserved):
+                default_index = i
+                break
+
+    selected_option = st.selectbox("Select Video", video_options, index=default_index, key="outcomes_video")
+
+    if selected_option == "Select a video...":
+        st.info("Select a video to label delivery outcomes.")
+        return
+
+    selected_video = selected_option.split(" — ", 1)[0]
+
+    # Load detections
+    detections = load_detections(storage, selected_video)
+    if not detections:
+        st.warning("Could not load detections.")
+        return
+
+    deliveries = detections.get("deliveries", [])
+    approved = [d for d in deliveries if d.get("status") == "approved"]
+    fps = detections.get("fps", 30.0)
+
+    if not approved:
+        st.warning("No approved deliveries in this video.")
+        return
+
+    # Summary stats
+    labeled_count = sum(1 for d in approved if d.get("outcome"))
+    unlabeled_count = len(approved) - labeled_count
+
+    stat_cols = st.columns(4)
+    with stat_cols[0]:
+        st.metric("Approved", len(approved))
+    with stat_cols[1]:
+        st.metric("Labeled", labeled_count)
+    with stat_cols[2]:
+        st.metric("Unlabeled", unlabeled_count)
+    with stat_cols[3]:
+        progress = labeled_count / len(approved) * 100 if approved else 0
+        st.metric("Progress", f"{progress:.0f}%")
+
+    st.divider()
+
+    # Initialize index
+    if "outcomes_delivery_idx" not in st.session_state:
+        st.session_state.outcomes_delivery_idx = 0
+
+    # Find first unlabeled if starting fresh
+    if st.session_state.get("_outcomes_video_selected") != selected_video:
+        for i, d in enumerate(approved):
+            if not d.get("outcome"):
+                st.session_state.outcomes_delivery_idx = i
+                break
+        else:
+            st.session_state.outcomes_delivery_idx = 0
+
+    # Layout: list + viewer
+    list_col, viewer_col = st.columns([1, 2])
+
+    with list_col:
+        st.markdown("### Deliveries")
+
+        filter_choice = st.radio(
+            "Filter",
+            ["Unlabeled", "All", "Labeled"],
+            horizontal=True,
+            key="outcomes_filter",
+        )
+
+        if filter_choice == "Unlabeled":
+            filtered = [(i, d) for i, d in enumerate(approved) if not d.get("outcome")]
+        elif filter_choice == "Labeled":
+            filtered = [(i, d) for i, d in enumerate(approved) if d.get("outcome")]
+        else:
+            filtered = list(enumerate(approved))
+
+        for display_idx, (actual_idx, delivery) in enumerate(filtered):
+            start_min = int(delivery["start_time"] // 60)
+            start_sec = int(delivery["start_time"] % 60)
+            outcome = delivery.get("outcome", "")
+            outcome_display = OUTCOMES.get(outcome, "?") if outcome else "—"
+
+            btn_label = f"#{display_idx+1} | {start_min}:{start_sec:02d} | {outcome_display}"
+            is_selected = actual_idx == st.session_state.outcomes_delivery_idx
+
+            if st.button(
+                btn_label,
+                key=f"out_sel_{actual_idx}",
+                use_container_width=True,
+                type="primary" if is_selected else "secondary",
+            ):
+                st.session_state.outcomes_delivery_idx = actual_idx
+                st.session_state._outcomes_video_selected = selected_video
+                st.rerun()
+
+    with viewer_col:
+        st.markdown("### Classify Outcome")
+
+        if st.session_state.outcomes_delivery_idx < len(approved):
+            selected = approved[st.session_state.outcomes_delivery_idx]
+            # Find actual index in full deliveries list
+            actual_delivery_idx = deliveries.index(selected)
+
+            info_cols = st.columns(3)
+            with info_cols[0]:
+                st.metric("Time", f"{selected['start_time']:.1f}s - {selected['end_time']:.1f}s")
+            with info_cols[1]:
+                st.metric("Confidence", f"{selected['confidence']*100:.1f}%")
+            with info_cols[2]:
+                current_outcome = selected.get("outcome", "")
+                st.metric("Current", OUTCOMES.get(current_outcome, "Not labeled"))
+
+            # Video clip player
+            start_time = max(0, selected["start_time"] - 2)
+            import tempfile
+            clip_duration = (selected["end_time"] - selected["start_time"]) + 4
+            local_video_path = storage.read_video(selected_video)
+
+            with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as tmp:
+                tmp_path = tmp.name
+
+            try:
+                subprocess.run([
+                    "ffmpeg", "-y", "-ss", str(start_time), "-i", str(local_video_path),
+                    "-t", str(clip_duration), "-c:v", "libx264", "-c:a", "aac",
+                    "-loglevel", "error", tmp_path
+                ], check=True, capture_output=True)
+                st.video(tmp_path)
+            except Exception as e:
+                st.error(f"Could not extract clip: {e}")
+
+            st.divider()
+
+            # Outcome buttons - two rows
+            st.markdown("**Select outcome:**")
+
+            row1 = st.columns(4)
+            row2 = st.columns(4)
+
+            def label_outcome(outcome_key):
+                deliveries[actual_delivery_idx]["outcome"] = outcome_key
+                save_detections(storage, selected_video, detections)
+                # Move to next unlabeled
+                for i, d in enumerate(approved):
+                    if i > st.session_state.outcomes_delivery_idx and not d.get("outcome"):
+                        st.session_state.outcomes_delivery_idx = i
+                        break
+                st.session_state._outcomes_video_selected = selected_video
+                st.rerun()
+
+            with row1[0]:
+                if st.button("0 - Dot", key="out_0", use_container_width=True,
+                           type="primary" if selected.get("outcome") == "0" else "secondary"):
+                    label_outcome("0")
+            with row1[1]:
+                if st.button("1 Run", key="out_1", use_container_width=True,
+                           type="primary" if selected.get("outcome") == "1" else "secondary"):
+                    label_outcome("1")
+            with row1[2]:
+                if st.button("2 Runs", key="out_2", use_container_width=True,
+                           type="primary" if selected.get("outcome") == "2" else "secondary"):
+                    label_outcome("2")
+            with row1[3]:
+                if st.button("3 Runs", key="out_3", use_container_width=True,
+                           type="primary" if selected.get("outcome") == "3" else "secondary"):
+                    label_outcome("3")
+
+            with row2[0]:
+                if st.button("4 - Four", key="out_4", use_container_width=True,
+                           type="primary" if selected.get("outcome") == "4" else "secondary"):
+                    label_outcome("4")
+            with row2[1]:
+                if st.button("6 - Six", key="out_6", use_container_width=True,
+                           type="primary" if selected.get("outcome") == "6" else "secondary"):
+                    label_outcome("6")
+            with row2[2]:
+                if st.button("W - Wicket", key="out_W", use_container_width=True,
+                           type="primary" if selected.get("outcome") == "W" else "secondary"):
+                    label_outcome("W")
+            with row2[3]:
+                if st.button("Skip →", key="out_skip", use_container_width=True):
+                    if st.session_state.outcomes_delivery_idx < len(approved) - 1:
+                        st.session_state.outcomes_delivery_idx += 1
+                        st.session_state._outcomes_video_selected = selected_video
+                        st.rerun()
+
+            st.caption("Tip: Label the outcome of each delivery. Data saves automatically.")
+
+    # Export section
+    st.divider()
+    with st.expander("Export Outcome Labels"):
+        # Generate summary
+        outcome_counts = {}
+        for d in approved:
+            out = d.get("outcome", "unlabeled")
+            outcome_counts[out] = outcome_counts.get(out, 0) + 1
+
+        st.markdown("**Summary:**")
+        summary_cols = st.columns(len(OUTCOMES) + 1)
+        for i, (key, label) in enumerate(OUTCOMES.items()):
+            with summary_cols[i]:
+                st.metric(label, outcome_counts.get(key, 0))
+        with summary_cols[-1]:
+            st.metric("Unlabeled", outcome_counts.get("unlabeled", 0))
+
+        if st.button("Export as JSON", key="export_outcomes"):
+            export_data = {
+                "video": selected_video,
+                "fps": fps,
+                "deliveries": [
+                    {
+                        "id": d.get("id"),
+                        "start_time": d["start_time"],
+                        "end_time": d["end_time"],
+                        "outcome": d.get("outcome"),
+                    }
+                    for d in approved if d.get("outcome")
+                ]
+            }
+            st.json(export_data)
+
+
 def run_training_tab(domain: str = "cricket"):
     """Run the training tab for model training and management."""
     storage: StorageBackend = st.session_state.storage
@@ -1794,13 +2068,16 @@ def run_labeler():
     )
 
     # Main tabs with cleaner styling
-    tab1, tab2, tab4, tab3 = st.tabs(["LABELING", "ANALYSIS", "REVIEWED", "TRAINING"])
+    tab1, tab2, tab4, tab5, tab3 = st.tabs(["LABELING", "ANALYSIS", "REVIEWED", "OUTCOMES", "TRAINING"])
 
     with tab2:
         run_analysis_tab(domain)
 
     with tab4:
         run_reviewed_tab(domain)
+
+    with tab5:
+        run_outcomes_tab(domain)
 
     with tab3:
         run_training_tab(domain)
